@@ -1,0 +1,23 @@
+{
+  "services": {
+    "vercel": {
+      "teamId": "",
+      "projectId": "",
+      "stagingUrl": "",
+      "productionUrl": ""
+    },
+    "sentry": {
+      "organizationSlug": "",
+      "projectSlug": ""
+    },
+    "firebase": {
+      "note": ""
+    }
+  },
+  "urls": {
+    "staging": "",
+    "production": "",
+    "sentry": "",
+    "dashboard": ""
+  }
+}

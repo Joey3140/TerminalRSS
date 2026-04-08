@@ -1,0 +1,15 @@
+.build/
+build/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+.swiftpm/xcode/
+Package.resolved
+.DS_Store
+*.app/
+.claude/.backups/
+.claude/.env-backups/
+.ai-codex/
+dashboard.html
+*.pre-harness
+*.pre-update

@@ -1,0 +1,10 @@
+{
+  "endpointDirs": [],
+  "sharedDirs": ["Sources/TerminalRSS/Utilities/", "Sources/TerminalRSS/Models/"],
+  "pageDirs": [],
+  "componentDirs": ["Sources/TerminalRSS/Views/"],
+  "extensions": [".swift"],
+  "endpointCategories": {},
+  "infraScripts": [],
+  "ignoredDirs": [".git", ".build", "build", "DerivedData", ".ai-codex"]
+}

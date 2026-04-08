@@ -1,0 +1,83 @@
+{
+  "project": {
+    "name": "TerminalRSS",
+    "techStack": ["Swift", "SwiftUI", "macOS"],
+    "testCommand": "swift test",
+    "lintCommand": "",
+    "buildCommand": "bash build.sh",
+    "mainBranch": "main",
+    "devBranch": ""
+  },
+  "versioning": {
+    "files": [
+      ".claude/.harness-version"
+    ],
+    "changelog": "CHANGELOG.md",
+    "additionalSyncFiles": []
+  },
+  "tickets": {
+    "statuses": [
+      "BACKLOG",
+      "NOT_SPECCED",
+      "SPEC_READY",
+      "IN_PROGRESS",
+      "IN_REVIEW",
+      "NEEDS_HUMAN"
+    ],
+    "priorities": [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+      "P5"
+    ],
+    "releases": [],
+    "directory": "project/tickets"
+  },
+  "codex": {
+    "endpointDirs": [],
+    "sharedDirs": [
+      "Sources/TerminalRSS/Utilities/",
+      "Sources/TerminalRSS/Models/"
+    ],
+    "pageDirs": [],
+    "componentDirs": [
+      "Sources/TerminalRSS/Views/"
+    ],
+    "extensions": [
+      ".swift"
+    ],
+    "endpointCategories": {},
+    "infraScripts": []
+  },
+  "hooks": {
+    "criticalMarkers": [],
+    "protectedFiles": [],
+    "memoryThresholds": {
+      "staleDays": 30,
+      "zeroRefDays": 14
+    },
+    "sizeRegression": {
+      "deletedLines": -50,
+      "addedLines": 500
+    }
+  },
+  "services": {
+    "vercel": {
+      "teamId": "",
+      "projectId": "",
+      "stagingUrl": "",
+      "productionUrl": ""
+    },
+    "sentry": {
+      "orgSlug": "",
+      "projectSlug": ""
+    },
+    "firebase": {
+      "projectId": ""
+    }
+  },
+  "dashboard": {
+    "port": 4001
+  }
+}
