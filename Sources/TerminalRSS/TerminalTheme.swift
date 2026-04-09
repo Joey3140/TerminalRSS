@@ -38,4 +38,13 @@ enum TerminalTheme {
     static let headerFont = Font.system(size: 13, weight: .bold, design: .monospaced)
     static let titleFont = Font.system(size: 15, weight: .bold, design: .monospaced)
     static let largeTitleFont = Font.system(size: 18, weight: .bold, design: .monospaced)
+
+    // MARK: - Shared Helpers
+
+    /// Strip .TO and -USD suffixes for compact symbol display.
+    static func displaySymbol(_ symbol: String) -> String {
+        symbol
+            .replacingOccurrences(of: ".TO", with: "")
+            .replacingOccurrences(of: "-USD", with: "")
+    }
 }

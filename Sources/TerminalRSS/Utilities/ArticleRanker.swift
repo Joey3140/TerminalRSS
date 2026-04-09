@@ -17,6 +17,18 @@ struct ArticleRanker {
         "we", "they", "its", "new", "how", "why", "what"
     ]
 
+    private static let adPatterns: [String] = [
+        "promo code", "coupon code", "discount code", "% off",
+        "promo codes", "coupon codes", "discount codes",
+        "deal of", "deals of", "best deals",
+        "affiliate", "sponsored",
+    ]
+
+    static func isLikelyAd(_ title: String) -> Bool {
+        let lower = title.lowercased()
+        return adPatterns.contains { lower.contains($0) }
+    }
+
     static func normalizeTitle(_ title: String) -> Set<String> {
         let cleaned = title.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -48,14 +60,21 @@ struct ArticleRanker {
         // Normalize all titles
         let normalized = articles.map { (article: $0, words: normalizeTitle($0.title)) }
 
-        // Greedy clustering
+        // Greedy clustering — threshold 0.3 for broader matching
+        // Cluster vocabulary grows as articles join (union of all member words)
         var clusters: [(primary: FeedItem, members: [FeedItem], words: Set<String>)] = []
 
         for entry in normalized {
+            guard entry.words.count >= 2 else {
+                // Too few words to match meaningfully — give it its own cluster
+                clusters.append((primary: entry.article, members: [entry.article], words: entry.words))
+                continue
+            }
             var matched = false
             for i in clusters.indices {
-                if jaccardSimilarity(entry.words, clusters[i].words) >= 0.5 {
+                if jaccardSimilarity(entry.words, clusters[i].words) >= 0.3 {
                     clusters[i].members.append(entry.article)
+                    clusters[i].words = clusters[i].words.union(entry.words)
                     matched = true
                     break
                 }
@@ -75,7 +94,9 @@ struct ArticleRanker {
             let hasPremium = cluster.members.contains { feedMap[$0.feedID]?.isPremium == true }
             let premiumBoost: Double = hasPremium ? 3.0 : 0.0
 
-            let score = Double(sourceCount) * 2.0 + bestRecency + premiumBoost
+            // Penalize ad/promo clusters — push them to the bottom
+            let adPenalty: Double = isLikelyAd(primary.title) ? -20.0 : 0.0
+            let score = Double(sourceCount) * 2.0 + bestRecency + premiumBoost + adPenalty
 
             return ArticleCluster(
                 id: primary.id,

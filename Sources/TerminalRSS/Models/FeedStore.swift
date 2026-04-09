@@ -15,6 +15,7 @@ enum ArticleSortMode: String, Codable, CaseIterable {
 enum ViewMode: Equatable {
     case allFeeds
     case ranked
+    case topics
     case feed(UUID)
 }
 
@@ -32,7 +33,15 @@ class FeedStore: ObservableObject {
     @Published var dateFilter: DateFilter = .all
     @Published var viewMode: ViewMode = .allFeeds
     @Published var expandedClusterIDs: Set<String> = []
+    @Published var expandedTopicIDs: Set<String> = []
 
+    // Cached derived data — rebuilt via rebuildCaches()
+    private(set) var cachedRankedArticles: [ArticleCluster] = []
+    private(set) var cachedTopicGroups: [TopicGroup] = []
+    private var articleFeedLookup: [String: UUID] = [:]
+    private var feedsByID: [UUID: Feed] = [:]
+
+    private let maxArticlesPerFeed = 200
     private let saveURL: URL
 
     init() {
@@ -45,6 +54,9 @@ class FeedStore: ObservableObject {
         selectedFeedID = nil  // ALL FEEDS mode on launch
         if feeds.isEmpty {
             Task { await populateDefaultFeeds() }
+        } else {
+            // Auto-add Moltbook if not already subscribed
+            Task { await addMoltbookIfMissing() }
         }
     }
 
@@ -88,6 +100,10 @@ class FeedStore: ObservableObject {
                     try? await FeedParser.fetch(url: url, feedID: feedID)
                 }
             }
+            // Moltbook — API-based feed
+            group.addTask {
+                await MoltbookFetcher.fetch(feedID: UUID())
+            }
             for await result in group {
                 if let (feed, items) = result {
                     feeds.append(feed)
@@ -103,6 +119,15 @@ class FeedStore: ObservableObject {
         isRefreshing = false
     }
 
+    private func addMoltbookIfMissing() async {
+        guard !feeds.contains(where: { $0.url.host?.contains("moltbook.com") == true }) else { return }
+        if let (feed, items) = await MoltbookFetcher.fetch(feedID: UUID()) {
+            feeds.append(feed)
+            articles[feed.id] = items
+            save()
+        }
+    }
+
     // MARK: - Persistence
 
     private struct SaveData: Codable {
@@ -112,7 +137,6 @@ class FeedStore: ObservableObject {
         var feedSortMode: FeedSortMode?
         var articleSortMode: ArticleSortMode?
         var dateFilter: DateFilter?
-        var viewMode: String?
     }
 
     func save() {
@@ -125,6 +149,7 @@ class FeedStore: ObservableObject {
         } catch {
             print("TerminalRSS save failed: \(error)")
         }
+        rebuildCaches()
     }
 
     private func load() {
@@ -141,6 +166,40 @@ class FeedStore: ObservableObject {
         } catch {
             print("TerminalRSS load failed: \(error)")
         }
+        // Cap accumulated articles per feed
+        for feedID in articles.keys {
+            capArticles(for: feedID)
+        }
+        rebuildCaches()
+    }
+
+    // MARK: - Caching
+
+    private func rebuildCaches() {
+        // Rebuild feed lookup
+        feedsByID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
+
+        // Rebuild article -> feed reverse lookup
+        var lookup: [String: UUID] = [:]
+        for (feedID, items) in articles {
+            for item in items {
+                lookup[item.id] = feedID
+            }
+        }
+        articleFeedLookup = lookup
+
+        // Rebuild ranked articles and topic groups
+        let allFiltered = filterByDate(articles.values.flatMap { $0 })
+        cachedRankedArticles = ArticleRanker.rank(articles: allFiltered, feeds: feeds, readIDs: readArticleIDs)
+        cachedTopicGroups = TopicClassifier.group(articles: allFiltered, feeds: feeds)
+    }
+
+    private func capArticles(for feedID: UUID) {
+        guard let items = articles[feedID], items.count > maxArticlesPerFeed else { return }
+        articles[feedID] = Array(
+            items.sorted { ($0.pubDate ?? .distantPast) > ($1.pubDate ?? .distantPast) }
+                .prefix(maxArticlesPerFeed)
+        )
     }
 
     // MARK: - Feed Management
@@ -154,6 +213,10 @@ class FeedStore: ObservableObject {
             errorMessage = "Invalid URL"
             return
         }
+        guard url.scheme == "http" || url.scheme == "https" else {
+            errorMessage = "Only http and https URLs are supported"
+            return
+        }
 
         if feeds.contains(where: { $0.url == url }) {
             errorMessage = "Feed already subscribed"
@@ -162,6 +225,22 @@ class FeedStore: ObservableObject {
 
         isRefreshing = true
         errorMessage = nil
+
+        // Handle Moltbook URLs via API fetcher
+        if url.host?.contains("moltbook.com") == true {
+            let feedID = UUID()
+            if let (feed, items) = await MoltbookFetcher.fetch(feedID: feedID) {
+                feeds.append(feed)
+                articles[feed.id] = items
+                selectedFeedID = feed.id
+                selectedArticleID = nil
+                save()
+            } else {
+                errorMessage = "Failed to fetch Moltbook"
+            }
+            isRefreshing = false
+            return
+        }
 
         do {
             let feedID = UUID()
@@ -188,7 +267,24 @@ class FeedStore: ObservableObject {
         save()
     }
 
-    func refreshFeed(_ feed: Feed) async {
+    /// Refresh a single feed's data without persisting (used by refreshAll for batching).
+    private func refreshFeedData(_ feed: Feed) async {
+        // Moltbook uses its own API fetcher, not RSS
+        if feed.url.host?.contains("moltbook.com") == true {
+            if let (_, newItems) = await MoltbookFetcher.fetch(feedID: feed.id) {
+                if let idx = feeds.firstIndex(where: { $0.id == feed.id }) {
+                    feeds[idx].lastRefreshed = Date()
+                }
+                let existingByID = Dictionary(uniqueKeysWithValues:
+                    (articles[feed.id] ?? []).map { ($0.id, $0) })
+                var merged = existingByID
+                for item in newItems { merged[item.id] = item }
+                articles[feed.id] = Array(merged.values)
+                capArticles(for: feed.id)
+            }
+            return
+        }
+
         do {
             let (updated, newItems) = try await FeedParser.fetch(url: feed.url, feedID: feed.id)
             if let idx = feeds.firstIndex(where: { $0.id == feed.id }) {
@@ -202,18 +298,27 @@ class FeedStore: ObservableObject {
             var merged = existingByID
             for item in newItems { merged[item.id] = item }
             articles[feed.id] = Array(merged.values)
-            save()
+            capArticles(for: feed.id)
         } catch {
             errorMessage = "Refresh failed: \(error.localizedDescription)"
         }
     }
 
+    func refreshFeed(_ feed: Feed) async {
+        await refreshFeedData(feed)
+        save()
+    }
+
     func refreshAll() async {
         isRefreshing = true
         errorMessage = nil
-        for feed in feeds {
-            await refreshFeed(feed)
+        await withTaskGroup(of: Void.self) { group in
+            for feed in feeds {
+                let feedCopy = feed
+                group.addTask { await self.refreshFeedData(feedCopy) }
+            }
         }
+        save()
         isRefreshing = false
     }
 
@@ -271,6 +376,7 @@ class FeedStore: ObservableObject {
     }
 
     var isRankedMode: Bool { viewMode == .ranked }
+    var isTopicsMode: Bool { viewMode == .topics }
 
     // MARK: - Computed
 
@@ -322,9 +428,21 @@ class FeedStore: ObservableObject {
         return sortArticles(filterByDate(articles[feedID] ?? []))
     }
 
-    var rankedArticles: [ArticleCluster] {
-        let all = filterByDate(articles.values.flatMap { $0 })
-        return ArticleRanker.rank(articles: all, feeds: feeds, readIDs: readArticleIDs)
+    var rankedArticles: [ArticleCluster] { cachedRankedArticles }
+
+    var topicGroups: [TopicGroup] { cachedTopicGroups }
+
+    func toggleTopicExpansion(_ topicID: String) {
+        if expandedTopicIDs.contains(topicID) {
+            expandedTopicIDs.remove(topicID)
+        } else {
+            expandedTopicIDs.insert(topicID)
+        }
+    }
+
+    /// Flat list of articles in topic order (for keyboard navigation)
+    var topicFlatArticles: [FeedItem] {
+        topicGroups.flatMap(\.articles)
     }
 
     var selectedArticle: FeedItem? {
@@ -338,12 +456,8 @@ class FeedStore: ObservableObject {
     }
 
     func feedName(for articleID: String) -> String? {
-        for (feedID, items) in articles {
-            if items.contains(where: { $0.id == articleID }) {
-                return feeds.first(where: { $0.id == feedID })?.title
-            }
-        }
-        return nil
+        guard let feedID = articleFeedLookup[articleID] else { return nil }
+        return feedsByID[feedID]?.title
     }
 
     // MARK: - Sort Cycling

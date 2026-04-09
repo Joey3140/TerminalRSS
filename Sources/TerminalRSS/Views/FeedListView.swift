@@ -20,6 +20,7 @@ struct FeedListView: View {
                     // ALL FEEDS row
                     allFeedsRow
                     rankedRow
+                    topicsRow
 
                     Rectangle().fill(TerminalTheme.panelBorder).frame(height: 1)
                         .padding(.vertical, 1)
@@ -144,6 +145,42 @@ struct FeedListView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             store.viewMode = .ranked
+            store.selectedFeedID = nil
+            store.selectedArticleID = nil
+        }
+    }
+
+    // MARK: - Topics Row
+
+    private var topicsRow: some View {
+        let isSelected = store.viewMode == .topics
+        let topicCount = store.topicGroups.count
+
+        return HStack(spacing: 6) {
+            Text(isSelected ? ">" : " ")
+                .font(TerminalTheme.bodyFont)
+                .foregroundStyle(TerminalTheme.accentGreen)
+                .frame(width: 14, alignment: .leading)
+
+            Text("◆ TOPICS")
+                .font(isSelected ? TerminalTheme.headerFont : TerminalTheme.bodyFont)
+                .foregroundStyle(isSelected ? TerminalTheme.accentOrange : TerminalTheme.accentAmber)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text("\(topicCount)")
+                .font(TerminalTheme.smallFont)
+                .foregroundStyle(TerminalTheme.dimText)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isSelected ? TerminalTheme.selectionBackground : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.viewMode = .topics
             store.selectedFeedID = nil
             store.selectedArticleID = nil
         }

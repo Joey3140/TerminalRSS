@@ -75,7 +75,7 @@ struct MarketDashboardStrip: View {
                     HStack(spacing: 2) {
                         Text("▲")
                             .foregroundStyle(TerminalTheme.accentGreen)
-                        Text(displaySymbol(gainer.symbol))
+                        Text(TerminalTheme.displaySymbol(gainer.symbol))
                             .foregroundStyle(TerminalTheme.brightText)
                         Text(String(format: "+%.1f%%", gainer.changePercent))
                             .foregroundStyle(TerminalTheme.accentGreen)
@@ -87,7 +87,7 @@ struct MarketDashboardStrip: View {
                     HStack(spacing: 2) {
                         Text("▼")
                             .foregroundStyle(TerminalTheme.accentRed)
-                        Text(displaySymbol(loser.symbol))
+                        Text(TerminalTheme.displaySymbol(loser.symbol))
                             .foregroundStyle(TerminalTheme.brightText)
                         Text(String(format: "%.1f%%", loser.changePercent))
                             .foregroundStyle(TerminalTheme.accentRed)
@@ -140,14 +140,7 @@ struct MarketDashboardStrip: View {
     }
 
     private func formatCompact(_ price: Double) -> String {
-        if price >= 10000 { return String(format: "%.0f", price) }
-        return String(format: "%.0f", price)
+        String(format: "%.0f", price)
     }
 
-    private func displaySymbol(_ symbol: String) -> String {
-        // Strip .TO and -USD suffixes for compact display
-        symbol
-            .replacingOccurrences(of: ".TO", with: "")
-            .replacingOccurrences(of: "-USD", with: "")
-    }
 }

@@ -19,7 +19,15 @@ struct ArticleListView: View {
                     .font(TerminalTheme.headerFont)
                     .foregroundStyle(TerminalTheme.accentOrange)
 
-                if store.isRankedMode {
+                if store.isTopicsMode {
+                    Text("— TOPICS")
+                        .font(TerminalTheme.smallFont)
+                        .foregroundStyle(TerminalTheme.accentAmber)
+                    Text("\(store.topicGroups.count) topics")
+                        .font(TerminalTheme.smallFont)
+                        .foregroundStyle(TerminalTheme.dimText)
+                        .padding(.leading, 4)
+                } else if store.isRankedMode {
                     Text("— RANKED")
                         .font(TerminalTheme.smallFont)
                         .foregroundStyle(TerminalTheme.accentAmber)
@@ -41,7 +49,7 @@ struct ArticleListView: View {
                 Spacer()
 
                 // Sort mode — clickable (hidden in ranked mode)
-                if !store.isRankedMode {
+                if !store.isRankedMode && !store.isTopicsMode {
                     Button {
                         store.cycleArticleSort()
                     } label: {
@@ -56,7 +64,7 @@ struct ArticleListView: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("\(store.isRankedMode ? store.rankedArticles.count : store.selectedArticles.count)")
+                Text("\(store.isTopicsMode ? store.topicFlatArticles.count : store.isRankedMode ? store.rankedArticles.count : store.selectedArticles.count)")
                     .font(TerminalTheme.smallFont)
                     .foregroundStyle(TerminalTheme.dimText)
                     .padding(.leading, 6)
@@ -67,7 +75,40 @@ struct ArticleListView: View {
 
             Rectangle().fill(TerminalTheme.panelBorder).frame(height: 1)
 
-            if store.isRankedMode {
+            if store.isTopicsMode {
+                if store.topicGroups.isEmpty {
+                    Spacer()
+                    Text("NO TOPICS")
+                        .font(TerminalTheme.bodyFont)
+                        .foregroundStyle(TerminalTheme.dimText)
+                    Spacer()
+                } else {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(store.topicGroups) { group in
+                                    topicHeader(group)
+                                        .id("topic-\(group.id)")
+
+                                    if store.expandedTopicIDs.contains(group.id) {
+                                        ForEach(group.articles) { article in
+                                            articleRow(article)
+                                                .id(article.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .onChange(of: store.selectedArticleID) { _, newID in
+                            if let id = newID {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    proxy.scrollTo(id, anchor: .center)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if store.isRankedMode {
                 if store.rankedArticles.isEmpty {
                     Spacer()
                     Text("NO RANKED STORIES")
@@ -127,6 +168,39 @@ struct ArticleListView: View {
             }
         }
         .background(TerminalTheme.background)
+    }
+
+    // MARK: - Topic Header
+
+    private func topicHeader(_ group: TopicGroup) -> some View {
+        let isExpanded = store.expandedTopicIDs.contains(group.id)
+
+        return HStack(spacing: 8) {
+            Text(isExpanded ? "▼" : "▶")
+                .font(TerminalTheme.smallFont)
+                .foregroundStyle(TerminalTheme.dimText)
+                .frame(width: 12)
+
+            Text(group.topic)
+                .font(TerminalTheme.headerFont)
+                .foregroundStyle(TerminalTheme.accentOrange)
+
+            Spacer()
+
+            Text("\(group.articleCount)")
+                .font(TerminalTheme.smallFont)
+                .foregroundStyle(TerminalTheme.accentAmber)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(TerminalTheme.accentAmber.opacity(0.15))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(TerminalTheme.panelBackground)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.toggleTopicExpansion(group.id)
+        }
     }
 
     // MARK: - Cluster Row (Ranked Mode)

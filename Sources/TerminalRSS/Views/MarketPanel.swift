@@ -72,7 +72,7 @@ struct MarketPanel: View {
 
         return HStack(spacing: 6) {
             // Symbol — strip suffixes for display
-            Text(displaySymbol(quote.symbol))
+            Text(TerminalTheme.displaySymbol(quote.symbol))
                 .font(TerminalTheme.bodyFont)
                 .foregroundStyle(isFailed ? TerminalTheme.dimText : TerminalTheme.brightText)
                 .frame(width: 65, alignment: .leading)
@@ -158,12 +158,6 @@ struct MarketPanel: View {
     }
 
     // MARK: - Helpers
-
-    private func displaySymbol(_ symbol: String) -> String {
-        symbol
-            .replacingOccurrences(of: ".TO", with: "")
-            .replacingOccurrences(of: "-USD", with: "")
-    }
 
     private func formatPrice(_ price: Double) -> String {
         if price >= 10000 { return String(format: "%.0f", price) }

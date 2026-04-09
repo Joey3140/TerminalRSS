@@ -83,7 +83,24 @@ struct ContentView: View {
     // MARK: - Keyboard Navigation
 
     private func navigateArticle(_ direction: Int) {
-        if store.isRankedMode {
+        if store.isTopicsMode {
+            // Navigate flat through all topic articles
+            let articles = store.topicFlatArticles
+            guard !articles.isEmpty else { return }
+
+            if let currentID = store.selectedArticleID,
+               let idx = articles.firstIndex(where: { $0.id == currentID }) {
+                let newIdx = min(max(idx + direction, 0), articles.count - 1)
+                store.selectedArticleID = articles[newIdx].id
+                store.markRead(articles[newIdx].id)
+            } else {
+                let article = direction > 0 ? articles.first : articles.last
+                if let a = article {
+                    store.selectedArticleID = a.id
+                    store.markRead(a.id)
+                }
+            }
+        } else if store.isRankedMode {
             // Navigate through ranked clusters' primary articles
             let clusters = store.rankedArticles
             guard !clusters.isEmpty else { return }
@@ -126,9 +143,8 @@ struct ContentView: View {
     }
 
     private func openCurrentArticle() {
-        if let article = store.selectedArticle, let url = article.link {
-            NSWorkspace.shared.open(url)
-        }
+        // Open in the in-app browser panel
+        NotificationCenter.default.post(name: .openInBrowser, object: nil)
     }
 }
 
@@ -186,4 +202,5 @@ struct BottomStatusBar: View {
 extension Notification.Name {
     static let addFeed = Notification.Name("TerminalRSS.addFeed")
     static let deleteFeed = Notification.Name("TerminalRSS.deleteFeed")
+    static let openInBrowser = Notification.Name("TerminalRSS.openInBrowser")
 }

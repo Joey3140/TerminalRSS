@@ -2,8 +2,39 @@ import SwiftUI
 
 struct ArticleDetailView: View {
     @EnvironmentObject var store: FeedStore
+    @State private var showBrowser = false
+    @State private var browserURL: URL?
 
     var body: some View {
+        VStack(spacing: 0) {
+            if showBrowser, let url = browserURL {
+                BrowserPanel(
+                    url: url,
+                    onClose: { showBrowser = false },
+                    onOpenExternal: {
+                        NSWorkspace.shared.open(url)
+                    }
+                )
+            } else {
+                readerView
+            }
+        }
+        .background(TerminalTheme.background)
+        .onChange(of: store.selectedArticleID) { _, _ in
+            // Reset to reader when switching articles
+            showBrowser = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openInBrowser)) { _ in
+            if let article = store.selectedArticle, let url = article.link {
+                browserURL = url
+                showBrowser = true
+            }
+        }
+    }
+
+    // MARK: - Reader View
+
+    private var readerView: some View {
         VStack(spacing: 0) {
             // Panel header
             HStack {
@@ -15,13 +46,24 @@ struct ArticleDetailView: View {
 
                 if let article = store.selectedArticle, let url = article.link {
                     Button {
-                        NSWorkspace.shared.open(url)
+                        browserURL = url
+                        showBrowser = true
                     } label: {
-                        Text("OPEN IN BROWSER")
+                        Text("VIEW IN BROWSER")
                             .font(TerminalTheme.smallFont)
                             .foregroundStyle(TerminalTheme.accentBlue)
                     }
                     .buttonStyle(.plain)
+
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Text("SAFARI ↗")
+                            .font(TerminalTheme.smallFont)
+                            .foregroundStyle(TerminalTheme.dimText)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 8)
                 }
             }
             .padding(.horizontal, 8)
@@ -80,7 +122,6 @@ struct ArticleDetailView: View {
                 Spacer()
             }
         }
-        .background(TerminalTheme.background)
     }
 
     // MARK: - Block Rendering
@@ -154,33 +195,37 @@ struct ArticleDetailView: View {
     }
 
     private func renderSegments(_ segments: [TextSegment]) -> Text {
-        var result = Text("")
+        var attributed = AttributedString()
         for segment in segments {
+            var part: AttributedString
             switch segment {
             case .plain(let s):
-                result = result + Text(s)
-                    .font(TerminalTheme.bodyFont)
-                    .foregroundColor(TerminalTheme.primaryText)
+                part = AttributedString(s)
+                part.font = TerminalTheme.bodyFont
+                part.foregroundColor = TerminalTheme.primaryText
             case .bold(let s):
-                result = result + Text(s)
-                    .font(TerminalTheme.headerFont)
-                    .foregroundColor(TerminalTheme.brightText)
+                part = AttributedString(s)
+                part.font = TerminalTheme.headerFont
+                part.foregroundColor = TerminalTheme.brightText
             case .italic(let s):
-                result = result + Text(s)
-                    .font(TerminalTheme.bodyFont)
-                    .italic()
-                    .foregroundColor(TerminalTheme.primaryText)
+                part = AttributedString(s)
+                part.font = TerminalTheme.bodyFont.italic()
+                part.foregroundColor = TerminalTheme.primaryText
             case .code(let s):
-                result = result + Text(s)
-                    .font(TerminalTheme.bodyFont)
-                    .foregroundColor(TerminalTheme.accentGreen)
-            case .link(let text, _):
-                result = result + Text(text)
-                    .font(TerminalTheme.bodyFont)
-                    .foregroundColor(TerminalTheme.accentBlue)
-                    .underline()
+                part = AttributedString(s)
+                part.font = TerminalTheme.bodyFont
+                part.foregroundColor = TerminalTheme.accentGreen
+            case .link(let text, let urlString):
+                part = AttributedString(text)
+                part.font = TerminalTheme.bodyFont
+                part.foregroundColor = TerminalTheme.accentBlue
+                part.underlineStyle = .single
+                if let url = URL(string: urlString) {
+                    part.link = url
+                }
             }
+            attributed.append(part)
         }
-        return result
+        return Text(attributed)
     }
 }

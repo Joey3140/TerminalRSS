@@ -224,7 +224,7 @@ struct TabbedUtilityPanel: View {
         let bg = isGainer ? TerminalTheme.positiveBackground : TerminalTheme.negativeBackground
 
         return HStack(spacing: 8) {
-            Text(displaySymbol(quote.symbol))
+            Text(TerminalTheme.displaySymbol(quote.symbol))
                 .font(TerminalTheme.bodyFont)
                 .foregroundStyle(TerminalTheme.brightText)
                 .frame(width: 70, alignment: .leading)
@@ -306,12 +306,6 @@ struct TabbedUtilityPanel: View {
     }
 
     // MARK: - Helpers
-
-    private func displaySymbol(_ symbol: String) -> String {
-        symbol
-            .replacingOccurrences(of: ".TO", with: "")
-            .replacingOccurrences(of: "-USD", with: "")
-    }
 
     private func relativeTime(_ date: Date?) -> (text: String, color: Color) {
         guard let date = date else { return ("NEVER", TerminalTheme.accentRed) }

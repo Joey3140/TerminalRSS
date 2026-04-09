@@ -88,3 +88,10 @@ TerminalRSS is a personal RSS reader for macOS, styled like a terminal. It rende
 | `Views/ArticleListView.swift` | Article list for selected feed |
 | `Views/ArticleDetailView.swift` | Full article content view |
 | `Views/ContentView.swift` | Main layout (sidebar + detail) |
+
+### Recent Debugging Lessons
+
+- **Rebuild the installed app, not just the SwiftPM binary** — if behavior in the running UI does not match the current source, compare timestamps for `/Applications/TerminalRSS.app` and the current `.build` binary. This project is often run from the packaged app bundle, and stale bundles can make a real fix look broken.
+- **Use `bash build.sh` for end-to-end verification** — that script builds release, refreshes `build/TerminalRSS.app`, installs `/Applications/TerminalRSS.app`, and launches it. A successful `swift build` alone does not prove the app the user launched is current.
+- **For US market status, prefer Yahoo `currentTradingPeriod` over hand-rolled ET conversion** — Yahoo's chart metadata exposes pre/regular/post session start and end times as epoch timestamps. Derive open/closed state from those periods first, and only fall back to a holiday-aware NYSE schedule if Yahoo fails.
+- **Expect Yahoo anti-bot/rate-limit behavior** — raw requests can return `Too Many Requests` or `Unauthorized`. Send a browser-like `User-Agent` on finance requests and make market-status logic resilient when Yahoo omits `marketState`.
