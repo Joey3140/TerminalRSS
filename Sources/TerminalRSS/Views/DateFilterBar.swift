@@ -4,6 +4,9 @@ struct DateFilterBar: View {
     @EnvironmentObject var store: FeedStore
 
     private let presets: [(DateFilter, String)] = [
+        (.last1h, "1H"),
+        (.last3h, "3H"),
+        (.last8h, "8H"),
         (.today, "TODAY"),
         (.last24h, "24H"),
         (.last3d, "3D"),

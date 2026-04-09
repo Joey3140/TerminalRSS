@@ -1,6 +1,9 @@
 import Foundation
 
 enum DateFilter: Equatable {
+    case last1h
+    case last3h
+    case last8h
     case today
     case last24h
     case last3d
@@ -14,6 +17,12 @@ enum DateFilter: Equatable {
     var dateRange: (start: Date?, end: Date?) {
         let now = Date()
         switch self {
+        case .last1h:
+            return (now.addingTimeInterval(-1 * 3600), now)
+        case .last3h:
+            return (now.addingTimeInterval(-3 * 3600), now)
+        case .last8h:
+            return (now.addingTimeInterval(-8 * 3600), now)
         case .today:
             return (Calendar.current.startOfDay(for: now), now)
         case .last24h:
@@ -35,7 +44,7 @@ enum DateFilter: Equatable {
 
     var yahooFinanceRange: String {
         switch self {
-        case .today, .last24h:
+        case .last1h, .last3h, .last8h, .today, .last24h:
             return "1d"
         case .last3d, .last7d:
             return "5d"
@@ -56,6 +65,9 @@ enum DateFilter: Equatable {
 
     var label: String {
         switch self {
+        case .last1h: return "1H"
+        case .last3h: return "3H"
+        case .last8h: return "8H"
         case .today: return "TODAY"
         case .last24h: return "24H"
         case .last3d: return "3D"
@@ -79,6 +91,12 @@ extension DateFilter: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case .last1h:
+            try container.encode("last1h", forKey: .type)
+        case .last3h:
+            try container.encode("last3h", forKey: .type)
+        case .last8h:
+            try container.encode("last8h", forKey: .type)
         case .today:
             try container.encode("today", forKey: .type)
         case .last24h:
@@ -102,6 +120,9 @@ extension DateFilter: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
         switch type {
+        case "last1h": self = .last1h
+        case "last3h": self = .last3h
+        case "last8h": self = .last8h
         case "today": self = .today
         case "last24h": self = .last24h
         case "last3d": self = .last3d
