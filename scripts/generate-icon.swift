@@ -1,14 +1,77 @@
 #!/usr/bin/env swift
 import Cocoa
 
-// Bloomberg terminal-style "T" icon generator
-// Black background, orange T, blue border, green cursor
+// Terminal-style icon generator for TerminalRSS
+// Dark background, Iosevka-style thin monospace "_T", green cursor glow
+
+func drawIosevkaT(in ctx: CGContext, cx: CGFloat, cy: CGFloat, s: CGFloat) {
+    // Iosevka-style T: thin uniform strokes, geometric, with subtle serifs
+    let strokeW = s * 0.06
+    let letterH = s * 0.336
+    let letterW = s * 0.256
+
+    let topY = cy + letterH * 0.5
+    let botY = cy - letterH * 0.5
+    let color = NSColor(red: 0.0, green: 0.9, blue: 0.3, alpha: 1.0)
+
+    ctx.setStrokeColor(color.cgColor)
+    ctx.setLineWidth(strokeW)
+    ctx.setLineCap(.butt)
+    ctx.setLineJoin(.miter)
+
+    // Horizontal bar of T (top)
+    ctx.move(to: CGPoint(x: cx - letterW / 2, y: topY))
+    ctx.addLine(to: CGPoint(x: cx + letterW / 2, y: topY))
+    ctx.strokePath()
+
+    // Vertical stem of T
+    ctx.move(to: CGPoint(x: cx, y: topY))
+    ctx.addLine(to: CGPoint(x: cx, y: botY))
+    ctx.strokePath()
+
+    // Small serifs at ends of horizontal bar (Iosevka style)
+    let serifLen = strokeW * 1.8
+    // Left serif (downward tick)
+    ctx.move(to: CGPoint(x: cx - letterW / 2, y: topY))
+    ctx.addLine(to: CGPoint(x: cx - letterW / 2, y: topY - serifLen))
+    ctx.strokePath()
+    // Right serif (downward tick)
+    ctx.move(to: CGPoint(x: cx + letterW / 2, y: topY))
+    ctx.addLine(to: CGPoint(x: cx + letterW / 2, y: topY - serifLen))
+    ctx.strokePath()
+
+    // Small serif at bottom of stem (horizontal)
+    let botSerifW = strokeW * 2.2
+    ctx.move(to: CGPoint(x: cx - botSerifW, y: botY))
+    ctx.addLine(to: CGPoint(x: cx + botSerifW, y: botY))
+    ctx.strokePath()
+}
+
+func drawTerminalUnderscore(in ctx: CGContext, rightEdgeX: CGFloat, baseY: CGFloat, s: CGFloat) {
+    // Terminal underscore cursor "_" — blinking cursor style, positioned before the letter
+    let cursorW = s * 0.112
+    let cursorH = s * 0.05
+    let color = NSColor(red: 0, green: 1.0, blue: 0.25, alpha: 1.0)
+
+    // Underscore bar
+    color.setFill()
+    let rect = NSRect(x: rightEdgeX - cursorW, y: baseY, width: cursorW, height: cursorH)
+    NSBezierPath(rect: rect).fill()
+
+    // Glow
+    let glowColor = NSColor(red: 0, green: 1.0, blue: 0.25, alpha: 0.25)
+    glowColor.setFill()
+    let glowRect = NSRect(x: rect.minX - s * 0.02, y: rect.minY - s * 0.012,
+                          width: rect.width + s * 0.04, height: rect.height + s * 0.024)
+    NSBezierPath(roundedRect: glowRect, xRadius: 2, yRadius: 2).fill()
+}
 
 func renderIcon(pixelSize: Int) -> Data {
     let s = CGFloat(pixelSize)
     let image = NSImage(size: NSSize(width: s, height: s))
 
     image.lockFocus()
+    let ctx = NSGraphicsContext.current!.cgContext
 
     // Background — near-black with rounded corners
     let radius = s * 0.20
@@ -36,41 +99,27 @@ func renderIcon(pixelSize: Int) -> Data {
     NSColor(red: 0.15, green: 0.15, blue: 0.20, alpha: 0.7).setStroke()
     inner.stroke()
 
-    // "T" — bold monospace, Bloomberg orange
-    let fontSize = s * 0.58
-    let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .black)
-    let tColor = NSColor(red: 1.0, green: 0.55, blue: 0.0, alpha: 1.0)
-    let shadow = NSShadow()
-    shadow.shadowColor = NSColor(red: 1.0, green: 0.4, blue: 0.0, alpha: 0.3)
-    shadow.shadowBlurRadius = s * 0.03
-    shadow.shadowOffset = NSSize(width: 0, height: 0)
+    // Green glow behind text (subtle)
+    let glowCenter = NSPoint(x: s / 2 + s * 0.04, y: s / 2 + s * 0.02)
+    let glowRadius = s * 0.25
+    let orangeGlow = NSGradient(colors: [
+        NSColor(red: 0.0, green: 0.8, blue: 0.2, alpha: 0.08),
+        NSColor(red: 0.0, green: 0.8, blue: 0.2, alpha: 0.0),
+    ])!
+    orangeGlow.draw(fromCenter: glowCenter, radius: 0,
+                    toCenter: glowCenter, radius: glowRadius, options: [])
 
-    let attrs: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: tColor,
-        .shadow: shadow,
-    ]
-    let attrStr = NSAttributedString(string: "T", attributes: attrs)
-    let textSize = attrStr.size()
-    let tx = (s - textSize.width) / 2
-    let ty = (s - textSize.height) / 2 + s * 0.04
-    attrStr.draw(at: NSPoint(x: tx, y: ty))
+    // Draw the Iosevka-style "T" — shifted right slightly to make room for underscore
+    let letterCX = s / 2 + s * 0.04
+    let letterCY = s / 2 + s * 0.02
+    drawIosevkaT(in: ctx, cx: letterCX, cy: letterCY, s: s)
 
-    // Green cursor block — terminal feel
-    let cursorW = s * 0.10
-    let cursorH = max(s * 0.028, 1)
-    let cursorX = (s - cursorW) / 2
-    let cursorY = ty - s * 0.005
-    let cursorColor = NSColor(red: 0, green: 1.0, blue: 0.25, alpha: 0.9)
-    cursorColor.setFill()
-    NSBezierPath(rect: NSRect(x: cursorX, y: cursorY, width: cursorW, height: cursorH)).fill()
-
-    // Subtle green glow on cursor
-    let glowColor = NSColor(red: 0, green: 1.0, blue: 0.25, alpha: 0.15)
-    glowColor.setFill()
-    let glowRect = NSRect(x: cursorX - s * 0.02, y: cursorY - s * 0.01,
-                          width: cursorW + s * 0.04, height: cursorH + s * 0.02)
-    NSBezierPath(roundedRect: glowRect, xRadius: 2, yRadius: 2).fill()
+    // Draw terminal underscore "_" before the T
+    let letterH = s * 0.336
+    let letterW = s * 0.256
+    let underscoreBaseY = letterCY - letterH * 0.5
+    let underscoreRightX = letterCX - letterW / 2 - s * 0.025
+    drawTerminalUnderscore(in: ctx, rightEdgeX: underscoreRightX, baseY: underscoreBaseY, s: s)
 
     image.unlockFocus()
 
