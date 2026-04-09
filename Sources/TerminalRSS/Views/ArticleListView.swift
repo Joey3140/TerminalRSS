@@ -27,6 +27,10 @@ struct ArticleListView: View {
                         .font(TerminalTheme.smallFont)
                         .foregroundStyle(TerminalTheme.dimText)
                         .padding(.leading, 4)
+                } else if case .flagged(let flag) = store.viewMode {
+                    Text("— \(flag.icon) \(flag.rawValue)")
+                        .font(TerminalTheme.smallFont)
+                        .foregroundStyle(TerminalTheme.accentAmber)
                 } else if store.isRankedMode {
                     Text("— RANKED")
                         .font(TerminalTheme.smallFont)
@@ -324,6 +328,13 @@ struct ArticleListView: View {
                 .fill(isRead ? Color.clear : TerminalTheme.accentGreen)
                 .frame(width: 6, height: 6)
 
+            // Flag indicator
+            if let flag = store.flag(for: article.id) {
+                Text(flag.icon)
+                    .font(TerminalTheme.smallFont)
+                    .foregroundStyle(TerminalTheme.accentAmber)
+            }
+
             // Title
             Text(article.title)
                 .font(isRead ? TerminalTheme.bodyFont : TerminalTheme.headerFont)
@@ -356,6 +367,25 @@ struct ArticleListView: View {
         .onTapGesture {
             store.selectedArticleID = article.id
             store.markRead(article.id)
+        }
+        .contextMenu {
+            ForEach(ArticleFlag.allCases, id: \.rawValue) { flag in
+                Button {
+                    store.toggleFlag(article.id, flag: flag)
+                } label: {
+                    if store.flag(for: article.id) == flag {
+                        Text("Remove \(flag.icon) \(flag.rawValue)")
+                    } else {
+                        Text("\(flag.icon) \(flag.rawValue)")
+                    }
+                }
+            }
+            if store.flag(for: article.id) != nil {
+                Divider()
+                Button("Remove Flag") {
+                    store.removeFlag(article.id)
+                }
+            }
         }
     }
 }

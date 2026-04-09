@@ -56,12 +56,8 @@ struct ContentView: View {
         .focused($isFocused)
         .onAppear {
             isFocused = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if let window = NSApp.windows.first, !window.styleMask.contains(.fullScreen) {
-                    window.toggleFullScreen(nil)
-                }
-            }
         }
+        .frame(minWidth: 900, minHeight: 500)
         .onKeyPress(.downArrow) { navigateArticle(1); return .handled }
         .onKeyPress(.upArrow) { navigateArticle(-1); return .handled }
         .onKeyPress("j") { navigateArticle(1); return .handled }

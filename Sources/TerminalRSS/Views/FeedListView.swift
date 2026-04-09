@@ -25,6 +25,14 @@ struct FeedListView: View {
                     Rectangle().fill(TerminalTheme.panelBorder).frame(height: 1)
                         .padding(.vertical, 1)
 
+                    // Flag categories
+                    ForEach(ArticleFlag.allCases, id: \.rawValue) { flag in
+                        flagRow(flag)
+                    }
+
+                    Rectangle().fill(TerminalTheme.panelBorder).frame(height: 1)
+                        .padding(.vertical, 1)
+
                     ForEach(store.sortedFeeds) { feed in
                         feedRow(feed)
                     }
@@ -181,6 +189,44 @@ struct FeedListView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             store.viewMode = .topics
+            store.selectedFeedID = nil
+            store.selectedArticleID = nil
+        }
+    }
+
+    // MARK: - Flag Row
+
+    private func flagRow(_ flag: ArticleFlag) -> some View {
+        let isSelected = store.viewMode == .flagged(flag)
+        let count = store.flaggedCount(for: flag)
+
+        return HStack(spacing: 6) {
+            Text(isSelected ? ">" : " ")
+                .font(TerminalTheme.bodyFont)
+                .foregroundStyle(TerminalTheme.accentGreen)
+                .frame(width: 14, alignment: .leading)
+
+            Text("\(flag.icon) \(flag.rawValue)")
+                .font(isSelected ? TerminalTheme.headerFont : TerminalTheme.bodyFont)
+                .foregroundStyle(isSelected ? TerminalTheme.accentOrange : TerminalTheme.accentAmber)
+                .lineLimit(1)
+
+            Spacer()
+
+            if count > 0 {
+                Text("\(count)")
+                    .font(TerminalTheme.smallFont)
+                    .foregroundStyle(TerminalTheme.dimText)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isSelected ? TerminalTheme.selectionBackground : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.viewMode = .flagged(flag)
             store.selectedFeedID = nil
             store.selectedArticleID = nil
         }

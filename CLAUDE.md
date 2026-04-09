@@ -4,7 +4,7 @@
 
 1. **Understand before modifying** — read existing code before suggesting changes. Trace data flow. `grep` before editing.
 2. **Audit all callers on any change** — when fixing a shared function, grep ALL callers for the same class of bug. When making a field mandatory, grep ALL call sites.
-3. **Run build before committing** — `bash build.sh`, not just the changed file.
+3. **Always use `bash build.sh` to build** — this builds release, installs to `/Applications/TerminalRSS.app`, and relaunches. Never use `swift build` alone — it doesn't update the installed app. If the app was already running, kill it first (`pkill -f TerminalRSS`) before `build.sh` so the user sees the new binary.
 4. **Narrow try/catch** — never wrap large blocks in try/catch. Wrap only the risky operation.
 5. **Verify security claims independently** — after any security fix, grep the ENTIRE codebase for the vulnerable pattern.
 6. **Fix root causes, don't skip around them** — if a build step fails, fix why.

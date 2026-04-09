@@ -12,10 +12,25 @@ enum ArticleSortMode: String, Codable, CaseIterable {
     case readStatus = "STATUS"
 }
 
+enum ArticleFlag: String, Codable, CaseIterable {
+    case readLater = "READ LATER"
+    case favorite = "FAVORITE"
+    case flag = "FLAG"
+
+    var icon: String {
+        switch self {
+        case .readLater: return "◷"
+        case .favorite: return "♥"
+        case .flag: return "⚑"
+        }
+    }
+}
+
 enum ViewMode: Equatable {
     case allFeeds
     case ranked
     case topics
+    case flagged(ArticleFlag)
     case feed(UUID)
 }
 
@@ -34,6 +49,7 @@ class FeedStore: ObservableObject {
     @Published var viewMode: ViewMode = .allFeeds
     @Published var expandedClusterIDs: Set<String> = []
     @Published var expandedTopicIDs: Set<String> = []
+    @Published var flaggedArticles: [String: ArticleFlag] = [:]
 
     // Cached derived data — rebuilt via rebuildCaches()
     private(set) var cachedRankedArticles: [ArticleCluster] = []
@@ -55,8 +71,8 @@ class FeedStore: ObservableObject {
         if feeds.isEmpty {
             Task { await populateDefaultFeeds() }
         } else {
-            // Auto-add Moltbook if not already subscribed
-            Task { await addMoltbookIfMissing() }
+            // Add any new default feeds not yet subscribed
+            Task { await addMissingDefaultFeeds() }
         }
     }
 
@@ -86,6 +102,81 @@ class FeedStore: ObservableObject {
         // Dev
         "https://dev.to/feed",
         "https://blog.rust-lang.org/feed.xml",
+        // Substacks & Newsletters
+        "https://www.zinebriboua.com/feed",
+        "https://natesnewsletter.substack.com/feed",
+        "https://aiguide.substack.com/feed",
+        "https://www.nadaveyal.com/feed",
+        "https://www.bullionbite.com/feed",
+        "https://toronto.cityhallwatcher.com/feed",
+        "https://www.thestar.com/content/thestar/feed.RSSManagerServlet.articles.topstories.rss",
+        "https://www.cbc.ca/webfeed/rss/rss-topstories",
+        "https://www.techmeme.com/feed.xml",
+        "https://www.memeorandum.com/feed.xml",
+        "https://www.lennysnewsletter.com/feed",
+        "https://garymarcus.substack.com/feed",
+        "https://aswathdamodaran.substack.com/feed",
+        "https://www.oneusefulthing.org/feed",
+        "https://simonw.substack.com/feed",
+        "https://sophiebakalar.substack.com/feed",
+        "https://annieduke.substack.com/feed",
+        "https://www.uncommons.ca/feed",
+        "https://www.thereset.news/feed",
+        "https://mariepascual.substack.com/feed",
+        // Tech Analysis & Engineering Blogs
+        "https://stratechery.com/feed/",
+        "https://github.blog/feed/",
+        "https://stackoverflow.blog/feed/",
+        "https://netflixtechblog.com/feed",
+        "https://labs.spotify.com/feed/",
+        "https://world.hey.com/dhh/feed",
+        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+        "https://rss.slashdot.org/Slashdot/slashdotMain",
+        // Programming & Software Engineering
+        "https://www.aaronsw.com/2002/feeds/pgessays.rss",
+        "https://www.joelonsoftware.com/feed/",
+        "https://feeds.feedburner.com/codinghorror",
+        "https://martinfowler.com/feed.atom",
+        "https://overreacted.io/rss.xml",
+        "https://robertheaton.com/feed.xml",
+        // Science
+        "https://www.nature.com/nature.rss",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml",
+        // Apple / Swift / macOS Dev
+        "https://www.swiftbysundell.com/feed.rss",
+        "https://developer.apple.com/news/rss/news.rss",
+        "https://useyourloaf.com/blog/rss.xml",
+        "https://inessential.com/xml/rss.xml",
+        "https://oleb.net/blog/atom.xml",
+        // Fun
+        "https://xkcd.com/rss.xml",
+        // Engineering Blogs (wave 2)
+        "https://engineering.fb.com/feed/",
+        "https://slack.engineering/feed",
+        "https://feed.infoq.com",
+        "https://blog.jetbrains.com/feed",
+        // Apple Ecosystem (wave 2)
+        "https://www.macstories.net/feed",
+        "https://marco.org/rss",
+        "https://www.apple.com/newsroom/rss-feed.rss",
+        // Science & Space (wave 2)
+        "https://www.space.com/feeds/all",
+        "https://rss.sciam.com/ScientificAmerican-Global",
+        "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "https://flowingdata.com/feed",
+        // Startups & Business (wave 2)
+        "https://www.producthunt.com/feed",
+        "https://feeds.feedburner.com/venturebeat/SZYF",
+        "https://fortune.com/feed",
+        "https://steveblank.com/feed/",
+        // Design & Web Dev
+        "https://www.smashingmagazine.com/feed",
+        "https://alistapart.com/main/feed/",
+        "https://css-tricks.com/feed/",
+        // Fun / Misc (wave 2)
+        "https://www.atlasobscura.com/feeds/latest",
+        "https://hackaday.com/blog/feed/",
+        "https://feeds.feedburner.com/oatmealfeed",
     ]
 
     private func populateDefaultFeeds() async {
@@ -119,13 +210,35 @@ class FeedStore: ObservableObject {
         isRefreshing = false
     }
 
-    private func addMoltbookIfMissing() async {
-        guard !feeds.contains(where: { $0.url.host?.contains("moltbook.com") == true }) else { return }
-        if let (feed, items) = await MoltbookFetcher.fetch(feedID: UUID()) {
-            feeds.append(feed)
-            articles[feed.id] = items
-            save()
+    private func addMissingDefaultFeeds() async {
+        let existingURLs = Set(feeds.map { $0.url.absoluteString })
+        let missingURLs = Self.defaultFeedURLs.filter { !existingURLs.contains($0) }
+        let needsMoltbook = !feeds.contains(where: { $0.url.host?.contains("moltbook.com") == true })
+
+        guard !missingURLs.isEmpty || needsMoltbook else { return }
+
+        await withTaskGroup(of: (Feed, [FeedItem])?.self) { group in
+            for urlString in missingURLs {
+                guard let url = URL(string: urlString) else { continue }
+                let feedID = UUID()
+                group.addTask {
+                    try? await FeedParser.fetch(url: url, feedID: feedID)
+                }
+            }
+            if needsMoltbook {
+                group.addTask {
+                    await MoltbookFetcher.fetch(feedID: UUID())
+                }
+            }
+            for await result in group {
+                if let (feed, items) = result {
+                    feeds.append(feed)
+                    articles[feed.id] = items
+                }
+            }
         }
+
+        save()
     }
 
     // MARK: - Persistence
@@ -137,12 +250,13 @@ class FeedStore: ObservableObject {
         var feedSortMode: FeedSortMode?
         var articleSortMode: ArticleSortMode?
         var dateFilter: DateFilter?
+        var flaggedArticles: [String: ArticleFlag]?
     }
 
     func save() {
         let data = SaveData(feeds: feeds, articles: articles, readArticleIDs: readArticleIDs,
                             feedSortMode: feedSortMode, articleSortMode: articleSortMode,
-                            dateFilter: dateFilter)
+                            dateFilter: dateFilter, flaggedArticles: flaggedArticles)
         do {
             let encoded = try JSONEncoder().encode(data)
             try encoded.write(to: saveURL, options: .atomic)
@@ -163,6 +277,7 @@ class FeedStore: ObservableObject {
             feedSortMode = decoded.feedSortMode ?? .name
             articleSortMode = decoded.articleSortMode ?? .date
             dateFilter = decoded.dateFilter ?? .all
+            flaggedArticles = decoded.flaggedArticles ?? [:]
         } catch {
             print("TerminalRSS load failed: \(error)")
         }
@@ -343,6 +458,37 @@ class FeedStore: ObservableObject {
         readArticleIDs.contains(articleID)
     }
 
+    // MARK: - Flags
+
+    func toggleFlag(_ articleID: String, flag: ArticleFlag) {
+        if flaggedArticles[articleID] == flag {
+            flaggedArticles.removeValue(forKey: articleID)
+        } else {
+            flaggedArticles[articleID] = flag
+        }
+        save()
+    }
+
+    func removeFlag(_ articleID: String) {
+        flaggedArticles.removeValue(forKey: articleID)
+        save()
+    }
+
+    func flag(for articleID: String) -> ArticleFlag? {
+        flaggedArticles[articleID]
+    }
+
+    func flaggedCount(for flag: ArticleFlag) -> Int {
+        flaggedArticles.values.filter { $0 == flag }.count
+    }
+
+    func articlesFlagged(as flag: ArticleFlag) -> [FeedItem] {
+        let ids = flaggedArticles.filter { $0.value == flag }.map(\.key)
+        let idSet = Set(ids)
+        let items = articles.values.flatMap { $0 }.filter { idSet.contains($0.id) }
+        return sortArticles(items)
+    }
+
     // MARK: - Date Filtering
 
     func filterByDate(_ items: [FeedItem]) -> [FeedItem] {
@@ -421,6 +567,9 @@ class FeedStore: ObservableObject {
     }
 
     var selectedArticles: [FeedItem] {
+        if case .flagged(let flag) = viewMode {
+            return articlesFlagged(as: flag)
+        }
         if selectedFeedID == nil {
             return allArticles  // ALL FEEDS mode (already date-filtered via allArticles)
         }

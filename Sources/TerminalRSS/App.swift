@@ -13,6 +13,8 @@ struct TerminalRSSApp: App {
                 .preferredColorScheme(.dark)
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1400, height: 900)
+        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Add Feed") {
