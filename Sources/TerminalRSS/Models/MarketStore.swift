@@ -213,6 +213,7 @@ class MarketStore: ObservableObject {
 
         let change = price - base
         let changePercent = base != 0 ? (change / base) * 100 : 0
+        let sparkline = extractAllCloses(from: data)
 
         return MarketIndex(
             id: symbol,
@@ -220,7 +221,8 @@ class MarketStore: ObservableObject {
             symbol: symbol,
             price: price,
             change: change,
-            changePercent: changePercent
+            changePercent: changePercent,
+            sparklineData: sparkline
         )
     }
 

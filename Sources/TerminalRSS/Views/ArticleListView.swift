@@ -68,7 +68,7 @@ struct ArticleListView: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("\(store.isTopicsMode ? store.topicFlatArticles.count : store.isRankedMode ? store.rankedArticles.count : store.selectedArticles.count)")
+                Text("\(store.isTopicsMode ? store.topicFlatClusters.count : store.isRankedMode ? store.rankedArticles.count : store.selectedArticles.count)")
                     .font(TerminalTheme.smallFont)
                     .foregroundStyle(TerminalTheme.dimText)
                     .padding(.leading, 6)
@@ -95,9 +95,16 @@ struct ArticleListView: View {
                                         .id("topic-\(group.id)")
 
                                     if store.expandedTopicIDs.contains(group.id) {
-                                        ForEach(group.articles) { article in
-                                            articleRow(article)
-                                                .id(article.id)
+                                        ForEach(group.clusters) { cluster in
+                                            clusterRow(cluster)
+                                                .id(cluster.id)
+
+                                            if store.expandedClusterIDs.contains(cluster.id) {
+                                                ForEach(cluster.sources.filter { $0.id != cluster.primaryArticle.id }) { source in
+                                                    sourceRow(source)
+                                                        .id(source.id)
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -105,9 +112,7 @@ struct ArticleListView: View {
                         }
                         .onChange(of: store.selectedArticleID) { _, newID in
                             if let id = newID {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    proxy.scrollTo(id, anchor: .center)
-                                }
+                                proxy.scrollTo(id, anchor: .center)
                             }
                         }
                     }
@@ -138,9 +143,7 @@ struct ArticleListView: View {
                         }
                         .onChange(of: store.selectedArticleID) { _, newID in
                             if let id = newID {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    proxy.scrollTo(id, anchor: .center)
-                                }
+                                proxy.scrollTo(id, anchor: .center)
                             }
                         }
                     }

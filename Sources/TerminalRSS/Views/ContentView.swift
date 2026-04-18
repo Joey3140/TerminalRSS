@@ -80,24 +80,22 @@ struct ContentView: View {
 
     private func navigateArticle(_ direction: Int) {
         if store.isTopicsMode {
-            // Navigate flat through all topic articles
-            let articles = store.topicFlatArticles
-            guard !articles.isEmpty else { return }
+            let clusters = store.topicFlatClusters
+            guard !clusters.isEmpty else { return }
 
             if let currentID = store.selectedArticleID,
-               let idx = articles.firstIndex(where: { $0.id == currentID }) {
-                let newIdx = min(max(idx + direction, 0), articles.count - 1)
-                store.selectedArticleID = articles[newIdx].id
-                store.markRead(articles[newIdx].id)
+               let idx = clusters.firstIndex(where: { $0.primaryArticle.id == currentID }) {
+                let newIdx = min(max(idx + direction, 0), clusters.count - 1)
+                store.selectedArticleID = clusters[newIdx].primaryArticle.id
+                store.markRead(clusters[newIdx].primaryArticle.id)
             } else {
-                let article = direction > 0 ? articles.first : articles.last
-                if let a = article {
-                    store.selectedArticleID = a.id
-                    store.markRead(a.id)
+                let cluster = direction > 0 ? clusters.first : clusters.last
+                if let c = cluster {
+                    store.selectedArticleID = c.primaryArticle.id
+                    store.markRead(c.primaryArticle.id)
                 }
             }
         } else if store.isRankedMode {
-            // Navigate through ranked clusters' primary articles
             let clusters = store.rankedArticles
             guard !clusters.isEmpty else { return }
 

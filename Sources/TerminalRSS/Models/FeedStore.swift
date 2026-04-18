@@ -39,25 +39,36 @@ class FeedStore: ObservableObject {
     @Published var feeds: [Feed] = []
     @Published var articles: [UUID: [FeedItem]] = [:]
     @Published var readArticleIDs: Set<String> = []
-    @Published var selectedFeedID: UUID?
+    @Published var selectedFeedID: UUID? {
+        didSet { rebuildSelectedArticles() }
+    }
     @Published var selectedArticleID: String?
     @Published var isRefreshing = false
     @Published var errorMessage: String?
     @Published var feedSortMode: FeedSortMode = .name
-    @Published var articleSortMode: ArticleSortMode = .date
-    @Published var dateFilter: DateFilter = .all
-    @Published var viewMode: ViewMode = .allFeeds
+    @Published var articleSortMode: ArticleSortMode = .date {
+        didSet { rebuildSelectedArticles() }
+    }
+    @Published var dateFilter: DateFilter = .all {
+        didSet { rebuildSelectedArticles() }
+    }
+    @Published var viewMode: ViewMode = .allFeeds {
+        didSet { rebuildSelectedArticles() }
+    }
     @Published var expandedClusterIDs: Set<String> = []
     @Published var expandedTopicIDs: Set<String> = []
     @Published var flaggedArticles: [String: ArticleFlag] = [:]
 
     // Cached derived data — rebuilt via rebuildCaches()
-    private(set) var cachedRankedArticles: [ArticleCluster] = []
-    private(set) var cachedTopicGroups: [TopicGroup] = []
+    private var _cachedRankedArticles: [ArticleCluster]?
+    private var _cachedTopicGroups: [TopicGroup]?
+    @Published private(set) var cachedSelectedArticles: [FeedItem] = []
     private var articleFeedLookup: [String: UUID] = [:]
+    private var articlesByID: [String: FeedItem] = [:]
     private var feedsByID: [UUID: Feed] = [:]
 
     private let maxArticlesPerFeed = 200
+    private var pendingSaveWork: DispatchWorkItem?
     private let saveURL: URL
 
     init() {
@@ -294,19 +305,48 @@ class FeedStore: ObservableObject {
         // Rebuild feed lookup
         feedsByID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
 
-        // Rebuild article -> feed reverse lookup
-        var lookup: [String: UUID] = [:]
+        // Rebuild article -> feed reverse lookup + article-by-ID lookup
+        var feedLookup: [String: UUID] = [:]
+        var idLookup: [String: FeedItem] = [:]
         for (feedID, items) in articles {
             for item in items {
-                lookup[item.id] = feedID
+                feedLookup[item.id] = feedID
+                idLookup[item.id] = item
             }
         }
-        articleFeedLookup = lookup
+        articleFeedLookup = feedLookup
+        articlesByID = idLookup
 
-        // Rebuild ranked articles and topic groups
-        let allFiltered = filterByDate(articles.values.flatMap { $0 })
-        cachedRankedArticles = ArticleRanker.rank(articles: allFiltered, feeds: feeds, readIDs: readArticleIDs)
-        cachedTopicGroups = TopicClassifier.group(articles: allFiltered, feeds: feeds)
+        // Invalidate expensive caches — recomputed lazily when accessed
+        _cachedRankedArticles = nil
+        _cachedTopicGroups = nil
+
+        rebuildSelectedArticles()
+    }
+
+    private func rebuildSelectedArticles() {
+        if case .flagged(let flag) = viewMode {
+            cachedSelectedArticles = articlesFlagged(as: flag)
+            return
+        }
+        if selectedFeedID == nil {
+            cachedSelectedArticles = allArticles
+            return
+        }
+        guard let feedID = selectedFeedID else {
+            cachedSelectedArticles = []
+            return
+        }
+        cachedSelectedArticles = sortArticles(filterByDate(articles[feedID] ?? []))
+    }
+
+    private func scheduleDebouncedSave() {
+        pendingSaveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.save()
+        }
+        pendingSaveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
     }
 
     private func capArticles(for feedID: UUID) {
@@ -450,7 +490,7 @@ class FeedStore: ObservableObject {
 
     func markRead(_ articleID: String) {
         if readArticleIDs.insert(articleID).inserted {
-            save()
+            scheduleDebouncedSave()
         }
     }
 
@@ -566,20 +606,23 @@ class FeedStore: ObservableObject {
         }
     }
 
-    var selectedArticles: [FeedItem] {
-        if case .flagged(let flag) = viewMode {
-            return articlesFlagged(as: flag)
-        }
-        if selectedFeedID == nil {
-            return allArticles  // ALL FEEDS mode (already date-filtered via allArticles)
-        }
-        guard let feedID = selectedFeedID else { return [] }
-        return sortArticles(filterByDate(articles[feedID] ?? []))
+    var selectedArticles: [FeedItem] { cachedSelectedArticles }
+
+    var rankedArticles: [ArticleCluster] {
+        if let cached = _cachedRankedArticles { return cached }
+        let allFiltered = filterByDate(articles.values.flatMap { $0 })
+        let result = ArticleRanker.rank(articles: allFiltered, feeds: feeds, readIDs: readArticleIDs)
+        _cachedRankedArticles = result
+        return result
     }
 
-    var rankedArticles: [ArticleCluster] { cachedRankedArticles }
-
-    var topicGroups: [TopicGroup] { cachedTopicGroups }
+    var topicGroups: [TopicGroup] {
+        if let cached = _cachedTopicGroups { return cached }
+        let allFiltered = filterByDate(articles.values.flatMap { $0 })
+        let result = TopicClassifier.group(articles: allFiltered, feeds: feeds, readIDs: readArticleIDs)
+        _cachedTopicGroups = result
+        return result
+    }
 
     func toggleTopicExpansion(_ topicID: String) {
         if expandedTopicIDs.contains(topicID) {
@@ -589,19 +632,19 @@ class FeedStore: ObservableObject {
         }
     }
 
-    /// Flat list of articles in topic order (for keyboard navigation)
-    var topicFlatArticles: [FeedItem] {
-        topicGroups.flatMap(\.articles)
+    /// Flat list of clusters in topic order (for keyboard navigation)
+    var topicFlatClusters: [ArticleCluster] {
+        topicGroups.flatMap(\.clusters)
     }
 
     var selectedArticle: FeedItem? {
         guard let id = selectedArticleID else { return nil }
-        return selectedArticles.first { $0.id == id }
+        return articlesByID[id]
     }
 
     var selectedFeed: Feed? {
         guard let id = selectedFeedID else { return nil }
-        return feeds.first { $0.id == id }
+        return feedsByID[id]
     }
 
     func feedName(for articleID: String) -> String? {

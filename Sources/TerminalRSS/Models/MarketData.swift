@@ -16,4 +16,5 @@ struct MarketIndex: Identifiable {
     var price: Double
     var change: Double
     var changePercent: Double
+    var sparklineData: [Double]  // close prices for chart
 }

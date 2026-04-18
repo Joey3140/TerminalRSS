@@ -3,8 +3,8 @@ import Foundation
 struct TopicGroup: Identifiable {
     let id: String           // topic raw value
     let topic: String        // display name
-    let articles: [FeedItem] // sorted by date descending
-    let articleCount: Int
+    let clusters: [ArticleCluster] // ranked clusters within this topic
+    let articleCount: Int    // total articles (sum of all cluster sources)
 }
 
 struct TopicClassifier {
@@ -282,7 +282,7 @@ struct TopicClassifier {
         return bestTopic
     }
 
-    static func group(articles: [FeedItem], feeds: [Feed]) -> [TopicGroup] {
+    static func group(articles: [FeedItem], feeds: [Feed], readIDs: Set<String>) -> [TopicGroup] {
         let feedMap = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
 
         var topicMap: [Topic: [FeedItem]] = [:]
@@ -293,12 +293,13 @@ struct TopicClassifier {
         }
 
         return topicMap.map { topic, items in
-            let sorted = items.sorted { ($0.pubDate ?? .distantPast) > ($1.pubDate ?? .distantPast) }
+            let clusters = ArticleRanker.rank(articles: items, feeds: feeds, readIDs: readIDs)
+            let totalArticles = clusters.reduce(0) { $0 + $1.sourceCount }
             return TopicGroup(
                 id: topic.rawValue,
                 topic: topic.rawValue,
-                articles: sorted,
-                articleCount: sorted.count
+                clusters: clusters,
+                articleCount: totalArticles
             )
         }
         .sorted { $0.articleCount > $1.articleCount }

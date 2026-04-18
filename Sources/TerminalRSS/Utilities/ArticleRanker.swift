@@ -86,8 +86,10 @@ struct ArticleRanker {
 
         // Build ArticleCluster results
         return clusters.map { cluster in
-            // Pick article with longest content as primary
-            let primary = cluster.members.max(by: { $0.content.count < $1.content.count }) ?? cluster.primary
+            // Pick most recent article as primary (avoids scanning full content strings)
+            let primary = cluster.members.max(by: {
+                ($0.pubDate ?? .distantPast) < ($1.pubDate ?? .distantPast)
+            }) ?? cluster.primary
 
             let sourceCount = cluster.members.count
             let bestRecency = cluster.members.compactMap(\.pubDate).map { recencyScore($0) }.max() ?? 0
