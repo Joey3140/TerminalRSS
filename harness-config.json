@@ -1,12 +1,17 @@
 {
   "project": {
     "name": "TerminalRSS",
-    "techStack": ["Swift", "SwiftUI", "macOS"],
+    "techStack": [
+      "Swift",
+      "SwiftUI",
+      "macOS"
+    ],
     "testCommand": "swift test",
     "lintCommand": "",
     "buildCommand": "bash build.sh",
     "mainBranch": "main",
-    "devBranch": ""
+    "devBranch": "",
+    "description": "Terminal-styled SwiftUI RSS reader for macOS with Bloomberg-aesthetic UI, topic clustering, ranked view, and a built-in markets dashboard."
   },
   "versioning": {
     "files": [
