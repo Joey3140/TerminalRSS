@@ -183,7 +183,6 @@ class FeedStore: ObservableObject {
         // Design & Web Dev
         "https://www.smashingmagazine.com/feed",
         "https://alistapart.com/main/feed/",
-        "https://css-tricks.com/feed/",
         // Fun / Misc (wave 2)
         "https://www.atlasobscura.com/feeds/latest",
         "https://hackaday.com/blog/feed/",
@@ -455,7 +454,7 @@ class FeedStore: ObservableObject {
             articles[feed.id] = Array(merged.values)
             capArticles(for: feed.id)
         } catch {
-            errorMessage = "Refresh failed: \(error.localizedDescription)"
+            errorMessage = "Refresh failed [\(feed.title)]: \(error.localizedDescription)"
         }
     }
 
