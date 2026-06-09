@@ -48,6 +48,18 @@ cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
 </plist>
 EOF
 
+# Sign with a stable Developer ID so TCC permissions persist across rebuilds
+# (an unsigned/ad-hoc bundle gets a fresh identity every build, resetting any
+# consent). Falls back to ad-hoc on any machine that lacks the Developer ID cert.
+SIGN_ID="Developer ID Application: Joseph Drury (4MMDJ2N969)"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_ID"; then
+  codesign --force --sign "$SIGN_ID" --identifier com.twentyfiftysix.terminalrss \
+    "$APP_DIR" 2>&1 | tail -3 || echo "codesign failed (continuing)"
+else
+  codesign --force --sign - --identifier com.twentyfiftysix.terminalrss \
+    "$APP_DIR" 2>&1 | tail -3 || echo "codesign failed (continuing)"
+fi
+
 # Remove old version and install
 rm -rf /Applications/TerminalRSS.app
 cp -R "$APP_DIR" /Applications/TerminalRSS.app
