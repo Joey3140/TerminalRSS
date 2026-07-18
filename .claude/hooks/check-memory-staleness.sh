@@ -19,6 +19,12 @@ if [ ! -d "$MEMORY_DIR" ]; then
   exit 0
 fi
 
+# One trap covers every temp file — a timeout kill mid-run leaked INDEX_TMP
+# when cleanup relied on inline rm
+INDEX_TMP=""
+DESCS_TMP=""
+trap 'rm -f "$INDEX_TMP" "$DESCS_TMP"' EXIT
+
 WARNINGS=""
 NOW=$(date +%s)
 STALE_DAYS=30
@@ -82,7 +88,6 @@ done
 # Duplicate detection: flag memory files with very similar descriptions
 # FIX(#2): Use temp files instead of process substitution (bash 3.2 compat)
 DESCS_TMP=$(mktemp)
-trap 'rm -f "$DESCS_TMP"' EXIT
 for f in "$MEMORY_DIR"/*.md; do
   [ -f "$f" ] || continue
   BASENAME=$(basename "$f")

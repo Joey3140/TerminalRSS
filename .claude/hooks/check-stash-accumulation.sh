@@ -14,10 +14,12 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
+# Only run after git commit commands
 if ! echo "$COMMAND" | grep -qE 'git\s+commit'; then
   exit 0
 fi
 
+# Skip if the commit failed
 TOOL_EXIT=$(echo "$INPUT" | jq -r '.tool_output.exit_code // .tool_result.exit_code // empty' 2>/dev/null)
 if [ "$TOOL_EXIT" = "1" ]; then
   exit 0
@@ -38,6 +40,7 @@ if [ "$STASH_COUNT" -gt 0 ]; then
   done
   echo "" >&2
   echo "  Stashes rot fast. Review with 'git stash show stash@{N}'" >&2
+  echo "  and drop if already merged: 'git stash drop stash@{N}'" >&2
   echo "============================================" >&2
   echo "" >&2
 fi

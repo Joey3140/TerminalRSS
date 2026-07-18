@@ -8,7 +8,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 // ---------------------------------------------------------------------------
 // Config Loading
@@ -757,7 +757,7 @@ function priOrd(p) { return { P0:0, P1:1, P2:2, P3:3, P5:5 }[p] || 9; }
 // Escape HTML
 function esc(s) {
   if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // Populate filter dropdowns from data
@@ -876,7 +876,7 @@ function render() {
   // Velocity
   var closedThisWeek = closed.filter(function(t) {
     if (!t.c) return false;
-    return new Date(t.c.replace(/\\s+/, 'T')) >= WEEK_AGO;
+    return new Date(t.c.replace(/\\s+/g, 'T')) >= WEEK_AGO;
   }).length;
 
   var needsHuman = counts['NEEDS_HUMAN'] || 0;
@@ -971,7 +971,7 @@ fs.writeFileSync(OUTPUT, html);
 console.log('Dashboard written to ' + OUTPUT + ' (' + tickets.length + ' tickets)');
 
 if (!SERVE) {
-  try { execSync('open ' + OUTPUT); } catch (e) { /* not macOS */ }
+  try { spawnSync('open', [OUTPUT], { stdio: 'ignore' }); } catch (e) { /* not macOS */ }
 }
 
 if (SERVE) {
@@ -987,6 +987,6 @@ if (SERVE) {
   });
   server.listen(PORT, function() {
     console.log('Serving live at http://localhost:' + PORT);
-    try { execSync('open http://localhost:' + PORT); } catch (e) { /* not macOS */ }
+    try { spawnSync('open', ['http://localhost:' + PORT], { stdio: 'ignore' }); } catch (e) { /* not macOS */ }
   });
 }
