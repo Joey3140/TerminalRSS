@@ -2,6 +2,10 @@
 # claude-harness — import/export mismatch detector for multi-agent builds
 # PostToolUse(Bash) — exit 2 (fed back to Claude) on confirmed mismatches
 # Reads .agent-interfaces-allow for known-good renames during migration
+#
+# Portability note: BSD sed/grep (macOS) treat \s as a literal 's', which
+# silently mangled names ('loadIdentityNames' -> 'loadIdentityName').
+# Use [[:space:]] everywhere — never \s.
 
 INPUT=$(cat)
 
@@ -26,12 +30,11 @@ fi
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 ALLOWLIST="$REPO_DIR/.agent-interfaces-allow"
 BLOCKERS=""
-WARNINGS=""
 
 # Load allowlist
 ALLOWED_PATTERNS=""
 if [ -f "$ALLOWLIST" ]; then
-  ALLOWED_PATTERNS=$(grep -v '^\s*#' "$ALLOWLIST" | grep -v '^\s*$')
+  ALLOWED_PATTERNS=$(grep -v '^[[:space:]]*#' "$ALLOWLIST" | grep -v '^[[:space:]]*$')
 fi
 
 is_allowed() {
@@ -39,7 +42,8 @@ is_allowed() {
   if [ -z "$ALLOWED_PATTERNS" ]; then
     return 1
   fi
-  echo "$ALLOWED_PATTERNS" | grep -qF "$imported" && return 0
+  # Word-boundary match: an allowlist entry for 'a' must not allow 'abc'
+  echo "$ALLOWED_PATTERNS" | grep -qE "(^|[^A-Za-z0-9_\$])${imported}([^A-Za-z0-9_\$]|$)" && return 0
   return 1
 }
 
@@ -59,22 +63,29 @@ for f in $CHANGED_FILES; do
   FULL="$REPO_DIR/$f"
   [ -f "$FULL" ] || continue
 
-  # Extract exports
-  grep -oE 'module\.exports\s*=\s*\{[^}]+\}' "$FULL" 2>/dev/null | \
-    grep -oE '[a-zA-Z_][a-zA-Z0-9_]*' | \
+  # Extract exports from `module.exports = { ... }` blocks — including
+  # multi-line blocks (awk range; the old single-line grep -o registered
+  # zero exports for any file with a multi-line export object). Nested
+  # braces may truncate the capture early; the direct-grep fallback in the
+  # cross-reference step still covers names past the truncation point.
+  awk '/module\.exports[[:space:]]*=[[:space:]]*\{/ {inblock=1}
+       inblock {print}
+       inblock && /\}/ {inblock=0}' "$FULL" 2>/dev/null | \
+    grep -oE '[A-Za-z_$][A-Za-z0-9_$]*' | \
     while read -r name; do
       [ "$name" = "module" ] || [ "$name" = "exports" ] && continue
       echo "$f:$name" >> "$EXPORTS_TMP"
     done
 
-  grep -oE 'exports\.[a-zA-Z_][a-zA-Z0-9_]*\s*=' "$FULL" 2>/dev/null | \
-    grep -oE '\.[a-zA-Z_][a-zA-Z0-9_]*' | sed 's/^\.//' | \
+  grep -oE '(module\.)?exports\.[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=' "$FULL" 2>/dev/null | \
+    grep -oE '\.[A-Za-z_$][A-Za-z0-9_$]*' | sed 's/^\.//' | \
     while read -r name; do
+      [ "$name" = "exports" ] && continue
       echo "$f:$name" >> "$EXPORTS_TMP"
     done
 
   # Extract destructured require() imports
-  grep -nE 'const\s*\{[^}]+\}\s*=\s*require\(' "$FULL" 2>/dev/null | \
+  grep -nE 'const[[:space:]]*\{[^}]+\}[[:space:]]*=[[:space:]]*require\(' "$FULL" 2>/dev/null | \
     while IFS= read -r line; do
       LINE_NUM=$(echo "$line" | cut -d: -f1)
       LINE_CONTENT=$(echo "$line" | cut -d: -f2-)
@@ -84,13 +95,18 @@ for f in $CHANGED_FILES; do
 
       echo "$REQ_PATH" | grep -qE '^\.' || continue
 
-      IMPORTED=$(echo "$LINE_CONTENT" | grep -oE '\{[^}]+\}' | tr -d '{}' | tr ',' '\n' | \
-        sed 's/^\s*//' | sed 's/\s*$//' | grep -v '^$')
-
-      for imp_name in $IMPORTED; do
-        clean_name=$(echo "$imp_name" | awk '{print $1}')
-        echo "$f:$LINE_NUM:$clean_name:$REQ_PATH" >> "$IMPORTS_TMP"
-      done
+      # One entry per comma-separated destructure item. For aliased items
+      # (`{ source: alias }`) the SOURCE name is what the module must
+      # export — take the first identifier, never the alias. (The old
+      # word-split checked the alias against exports: guaranteed mismatch.)
+      echo "$LINE_CONTENT" | grep -oE '\{[^}]+\}' | tr -d '{}' | tr ',' '\n' | \
+        while IFS= read -r entry; do
+          # Skip rest/spread — `...rest` is a local binding, not an export
+          case "$entry" in *'...'*) continue ;; esac
+          clean_name=$(echo "$entry" | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*' | head -1)
+          [ -z "$clean_name" ] && continue
+          echo "$f:$LINE_NUM:$clean_name:$REQ_PATH" >> "$IMPORTS_TMP"
+        done
     done
 done
 
@@ -114,8 +130,14 @@ if [ -f "$IMPORTS_TMP" ] && [ -s "$IMPORTS_TMP" ]; then
 
     [ -z "$RESOLVED" ] && continue
 
-    if [ -f "$EXPORTS_TMP" ] && ! grep -q "^$RESOLVED:$imp_name$" "$EXPORTS_TMP"; then
-      if [ -f "$REPO_DIR/$RESOLVED" ] && ! grep -qE "(exports\.$imp_name\s*=|$imp_name\s*[,}])" "$REPO_DIR/$RESOLVED" 2>/dev/null; then
+    # Fixed-string full-line match — path dots are not regex wildcards
+    if [ -f "$EXPORTS_TMP" ] && ! grep -qxF "$RESOLVED:$imp_name" "$EXPORTS_TMP"; then
+      # Fallback direct grep in the resolved file. Boundary-guarded so a
+      # short import name can't ride on the suffix of a longer export
+      # ('Names' must not match 'loadIdentityNames,').
+      if [ -f "$REPO_DIR/$RESOLVED" ] && \
+         ! grep -qE "(^|[^A-Za-z0-9_\$])(module\.)?exports\.${imp_name}[[:space:]]*=" "$REPO_DIR/$RESOLVED" 2>/dev/null && \
+         ! grep -qE "(^|[^A-Za-z0-9_\$])${imp_name}[[:space:]]*[,}:]" "$REPO_DIR/$RESOLVED" 2>/dev/null; then
         if ! is_allowed "$imp_name"; then
           BLOCKERS="${BLOCKERS}  IMPORT MISMATCH: $src_file:$line_num imports '$imp_name' from $req_path but $RESOLVED does not export it\n"
           MISMATCH_COUNT=$((MISMATCH_COUNT + 1))
