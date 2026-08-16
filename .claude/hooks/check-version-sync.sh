@@ -52,14 +52,30 @@ ERRORS=$(H_CONFIG="$CONFIG" H_REPO="$REPO_DIR" "$NODE_BIN" -e "
   const changelog = config.versioning?.changelog || 'CHANGELOG.md';
   const additionalFiles = config.versioning?.additionalSyncFiles || [];
 
-  // Get primary version from first version file (usually package.json)
+  // Get primary version from the first version file.
+  //
+  // JSON (package.json .version) was the ONLY shape understood, so any project
+  // whose version lives in a plain-text VERSION file — every Swift/SwiftPM
+  // project here, since SwiftPM has no version field — parsed as JSON, threw,
+  // fell through to primaryVersion='' and exited 0. The hook reported success
+  // while checking nothing at all. Silent no-ops are worse than absent hooks:
+  // they look like coverage.
   let primaryVersion = '';
   const primaryFile = path.join(repoDir, versionFiles[0]);
   if (fs.existsSync(primaryFile)) {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(primaryFile, 'utf8'));
-      primaryVersion = pkg.version || '';
-    } catch (e) {}
+    const raw = fs.readFileSync(primaryFile, 'utf8');
+    if (primaryFile.endsWith('.json')) {
+      try {
+        primaryVersion = JSON.parse(raw).version || '';
+      } catch (e) {}
+    } else {
+      // Plain-text version file: the whole contents are the version, e.g.
+      // \`1.4.2\\n\`. Anchored so a stray semver inside a larger file (a
+      // Package.swift dependency pin, say) can't be mistaken for the
+      // project's own version — that would be worse than not checking.
+      const m = raw.trim().match(/^v?(\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?)$/);
+      primaryVersion = m ? m[1] : '';
+    }
   }
 
   if (!primaryVersion) {

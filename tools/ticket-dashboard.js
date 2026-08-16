@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Ticket Dashboard — Kanban board from project tickets
 // Usage:
-//   node tools/ticket-dashboard.js          → generate dashboard.html + open
-//   node tools/ticket-dashboard.js --serve   → serve with live reload
+//   node tools/ticket-dashboard.js               → generate dashboard.html + open
+//   node tools/ticket-dashboard.js --no-open     → generate only, no browser
+//   node tools/ticket-dashboard.js --serve       → serve with live reload
 //   node tools/ticket-dashboard.js --serve 9090  → serve on port 9090
+//
+// HARNESS_NO_OPEN=1 in the environment is equivalent to --no-open.
 
 const http = require('http');
 const fs = require('fs');
@@ -61,6 +64,14 @@ const STATUS_LABELS = {
 // Parse CLI args
 const args = process.argv.slice(2);
 const SERVE = args.includes('--serve') || args.some(a => /^\d+$/.test(a));
+// Generate without hijacking the browser. `--no-open` is for any non-interactive
+// caller — installers, CI, test sandboxes — where popping a window is noise, or
+// worse: the dashboard installer ran this on every install, so installing into
+// a temp directory threw up an empty Kanban board pointing at
+// /var/folders/.../T/tmp.XXXX/tools/dashboard.html.
+// Honors HARNESS_NO_OPEN=1 too, so a caller can suppress it without threading
+// a flag through intermediate scripts.
+const NO_OPEN = args.includes('--no-open') || process.env.HARNESS_NO_OPEN === '1';
 const PORT = (() => {
   for (const a of args) { if (/^\d+$/.test(a)) return parseInt(a, 10); }
   return DASH_CONFIG.port || 4000;
@@ -970,7 +981,7 @@ var html = buildPage(tickets);
 fs.writeFileSync(OUTPUT, html);
 console.log('Dashboard written to ' + OUTPUT + ' (' + tickets.length + ' tickets)');
 
-if (!SERVE) {
+if (!SERVE && !NO_OPEN) {
   try { spawnSync('open', [OUTPUT], { stdio: 'ignore' }); } catch (e) { /* not macOS */ }
 }
 
@@ -987,6 +998,8 @@ if (SERVE) {
   });
   server.listen(PORT, function() {
     console.log('Serving live at http://localhost:' + PORT);
-    try { spawnSync('open', ['http://localhost:' + PORT], { stdio: 'ignore' }); } catch (e) { /* not macOS */ }
+    if (!NO_OPEN) {
+      try { spawnSync('open', ['http://localhost:' + PORT], { stdio: 'ignore' }); } catch (e) { /* not macOS */ }
+    }
   });
 }
