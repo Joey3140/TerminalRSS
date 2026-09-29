@@ -1,56 +1,24 @@
 # TerminalRSS — Rules for Claude
 
-## Global MUST DO (Apply to every task, every area)
+<!-- HARNESS:BEGIN — managed by claude-harness, do not edit this block -->
 
-1. **Understand before modifying** — read existing code before suggesting changes. Trace data flow. `grep` before editing.
-2. **Audit all callers on any change** — when fixing a shared function, grep ALL callers for the same class of bug. When making a field mandatory, grep ALL call sites.
-3. **Always use `bash build.sh` to build** — this builds release, installs to `/Applications/TerminalRSS.app`, and relaunches. Never use `swift build` alone — it doesn't update the installed app. If the app was already running, kill it first (`pkill -f TerminalRSS`) before `build.sh` so the user sees the new binary.
-4. **Narrow try/catch** — never wrap large blocks in try/catch. Wrap only the risky operation.
-5. **Verify security claims independently** — after any security fix, grep the ENTIRE codebase for the vulnerable pattern.
-6. **Fix root causes, don't skip around them** — if a build step fails, fix why.
-7. **Self-review before committing** — re-read every changed file. Check imports match, field names match, function signatures match.
+Inherits all global rules from `~/.claude/CLAUDE.md` and `~/Harness Projects/CLAUDE.md` — MUST DO / MUST NOT / PREFER / agent rules live there. Only harness-project deltas below; duplicating global rules makes maintenance lossy.
 
-## Global MUST NOT (Apply everywhere)
+## Project MUST DO
 
-1. **NEVER push to `main`** without explicit user approval in the SAME message.
-2. **NEVER hardcode secrets** or API keys.
-3. **NEVER use colons in filenames** — Windows incompatible.
-4. **NEVER use worktree isolation (`isolation: "worktree"`)** — permanently banned.
-5. **NEVER delete or weaken passing tests** without explicit user direction.
-6. **NEVER add scope creep** — don't add features, refactor surrounding code, add docstrings to unchanged code, or "improve" things beyond what was asked.
+1. **Build with `bash build.sh`** — it builds release, installs to `/Applications/TerminalRSS.app`, and relaunches; `swift build` alone doesn't update the installed app. Kill a running instance first (`pkill -f TerminalRSS`).
+2. **Verify before committing** — this project has no unit-test suite yet — verify by running `bash build.sh` and exercising the change in the installed app.
 
-## Global PREFER (Judgment guidance)
+## Project MUST NOT
 
-1. **Multiple-choice prompts** when asking the user — present options with pros/cons.
-2. **Design before implementation** — describe the approach before writing code.
-3. **Minimal, focused edits** over large refactors.
-4. **Extending existing patterns** over inventing new abstractions.
-5. **Judgment unbundling** — "Here's what I found + my recommendation + the one thing I need you to decide."
-6. **Screenshot-first debugging** — take a screenshot before reading code for visual bugs.
-7. **Assess blast radius before broad changes** — if a task touches 10+ files, consider breaking it up.
+1. **NEVER use worktree isolation (`isolation: "worktree"`)** — permanently banned. Worktree agents fork from stale bases and silently destroy feature work on merge.
 
-## ESCALATE (Stop and ask the user)
+## Project PREFER
 
-1. **Production deployment** — always ask before pushing to `main`
-2. **Structural/architectural changes** — suggest new rules, wait for review
-3. **Test deletion or weakening** — explain why and get explicit approval
-4. **Scope creep** — stop and re-scope
+1. **Assess blast radius before broad changes** — if a task touches 10+ files, consider breaking it up.
+2. **Structural/architectural changes** — suggest new rules and wait for review before restructuring.
 
-## Agent & Parallel Work
-
-1. **Multi-agent builds need interface reconciliation** — parallel agents invent different names. After any parallel build, grep imports vs exports, check response field names match.
-2. **Exclusive file manifests for parallelism** — if multiple agents must work simultaneously, give each ownership of specific files. Never let two agents touch the same file.
-3. **Merge conflicts: favor the target branch** — the branch with more commits on the conflicted file wins. Reapply the small change on top.
-
-## Hooks & Enforcement
-
-- **Deterministic hooks over rules** — if a constraint can be expressed as a grep/lint check, it should be a hook (exit 1), not a rule.
-- **If a hook blocks you, read the error and fix** — don't retry the same action.
-
-## Patterns That Work
-
-- **Test-first:** Check existing tests before implementing. Write tests before code.
-- **After 3+ failed attempts**, identify the wrong *assumption*, don't just retry.
+<!-- HARNESS:END -->
 
 ---
 
