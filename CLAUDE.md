@@ -6,8 +6,7 @@ Inherits all global rules from `~/.claude/CLAUDE.md` and `~/Harness Projects/CLA
 
 ## Project MUST DO
 
-1. **Build with `bash build.sh`** — it builds release, installs to `/Applications/TerminalRSS.app`, and relaunches; `swift build` alone doesn't update the installed app. Kill a running instance first (`pkill -f TerminalRSS`).
-2. **Verify before committing** — this project has no unit-test suite yet — verify by running `bash build.sh` and exercising the change in the installed app.
+1. **Verify before committing** — this project has no test suite yet; exercise the change the way this file describes (build script, live check, or manual run).
 
 ## Project MUST NOT
 

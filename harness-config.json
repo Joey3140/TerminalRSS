@@ -6,7 +6,7 @@
       "SwiftUI",
       "macOS"
     ],
-    "testCommand": "swift test",
+    "testCommand": "",
     "lintCommand": "",
     "buildCommand": "bash build.sh",
     "mainBranch": "main",
