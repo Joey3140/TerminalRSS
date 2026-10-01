@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-harness — missed memory crystallization detector
-# PostToolUse(Write|Edit) — warn-only, fires on session file writes
+# PostToolUse(Write|Edit) — warn-only (additionalContext to Claude), fires on session file writes
 # Checks if commits happened without corresponding memory saves
 
 INPUT=$(cat)
@@ -106,12 +106,11 @@ if [ -d "$MEMORY_DIR" ]; then
 fi
 
 if [ -n "$WARNINGS" ]; then
-  echo "" >&2
-  echo "============================================" >&2
-  echo "  SESSION CAPTURE CHECK" >&2
-  echo "============================================" >&2
-  echo -e "$WARNINGS" >&2
-  echo "============================================" >&2
+  # additionalContext on stdout — stderr with exit 0 is shown to no one, so
+  # this check used to run on every session-file write and reach nobody.
+  jq -n --arg ctx "SESSION CAPTURE CHECK
+$(printf '%b' "$WARNINGS")" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 fi
 
 exit 0

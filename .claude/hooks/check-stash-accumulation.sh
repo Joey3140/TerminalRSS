@@ -1,6 +1,6 @@
 #!/bin/bash
 # claude-harness — warn when git stashes accumulate after a commit
-# PostToolUse(Bash) — warn-only (exit 0)
+# PostToolUse(Bash) — warn-only (exit 0); the warning goes to Claude as additionalContext
 
 INPUT=$(cat)
 
@@ -19,9 +19,9 @@ if ! echo "$COMMAND" | grep -qE 'git\s+commit'; then
   exit 0
 fi
 
-# Skip if the commit failed
+# Skip if the commit failed (any nonzero exit, not just 1)
 TOOL_EXIT=$(echo "$INPUT" | jq -r '.tool_output.exit_code // .tool_result.exit_code // empty' 2>/dev/null)
-if [ "$TOOL_EXIT" = "1" ]; then
+if [ -n "$TOOL_EXIT" ] && [ "$TOOL_EXIT" != "0" ]; then
   exit 0
 fi
 
@@ -31,18 +31,14 @@ cd "$REPO_DIR" || exit 0
 STASH_COUNT=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
 
 if [ "$STASH_COUNT" -gt 0 ]; then
-  echo "" >&2
-  echo "============================================" >&2
-  echo "  STASH WARNING: $STASH_COUNT stash(es) exist" >&2
-  echo "============================================" >&2
-  git stash list 2>/dev/null | while IFS= read -r line; do
-    echo "  $line" >&2
-  done
-  echo "" >&2
-  echo "  Stashes rot fast. Review with 'git stash show stash@{N}'" >&2
-  echo "  and drop if already merged: 'git stash drop stash@{N}'" >&2
-  echo "============================================" >&2
-  echo "" >&2
+  # Emitted as PostToolUse additionalContext on stdout. It used to go to stderr
+  # with exit 0, which Claude Code shows to no one — the warning never reached
+  # the agent that could act on it.
+  MSG="STASH WARNING: $STASH_COUNT stash(es) exist after this commit:
+$(git stash list 2>/dev/null | sed 's/^/  /')
+Stashes rot fast. Check each with 'git stash show -p stash@{N}': drop it if the work is already committed, otherwise commit it or name it in the handoff."
+  jq -n --arg ctx "$MSG" \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 fi
 
 exit 0

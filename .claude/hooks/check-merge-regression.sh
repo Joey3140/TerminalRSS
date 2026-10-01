@@ -157,13 +157,11 @@ if [ -n "$REGRESSIONS" ]; then
 fi
 
 if [ -n "$SIZE_WARNINGS" ]; then
-  echo "" >&2
-  echo "============================================" >&2
-  echo "  MERGE SIZE WARNING (non-blocking)" >&2
-  echo "============================================" >&2
-  echo -e "$SIZE_WARNINGS" >&2
-  echo "  Verify these are intentional, not stale reverts." >&2
-  echo "============================================" >&2
+  # Non-blocking, so it goes out as additionalContext on stdout — stderr with
+  # exit 0 is shown to no one and this warning used to vanish.
+  jq -n --arg ctx "MERGE SIZE WARNING (non-blocking):
+$(printf '%b' "$SIZE_WARNINGS")Verify these are intentional, not stale reverts." \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
 fi
 
 exit 0
