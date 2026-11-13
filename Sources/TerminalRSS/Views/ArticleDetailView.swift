@@ -6,8 +6,23 @@ import AppKit
 struct SelectableArticleText: NSViewRepresentable {
     let attributedString: NSAttributedString
 
+    /// Without a delegate, AppKit hands any clicked .link straight to NSWorkspace,
+    /// whatever its scheme. Open only http/https; swallow everything else.
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            let url = (link as? URL) ?? (link as? String).flatMap { URL(string: $0) }
+            if let url, url.isWebURL {
+                NSWorkspace.shared.open(url)
+            }
+            return true
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> NSScrollView {
         let textView = NSTextView()
+        textView.delegate = context.coordinator
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
@@ -215,7 +230,7 @@ private enum ArticleAttributedBuilder {
                     .foregroundColor: NSColor(TerminalTheme.accentBlue),
                     .underlineStyle: NSUnderlineStyle.single.rawValue,
                 ]
-                if let url = URL(string: urlString) {
+                if let url = URL(string: urlString), url.isWebURL {
                     attrs[.link] = url
                 }
                 result.append(NSAttributedString(string: text, attributes: attrs))
@@ -239,7 +254,7 @@ struct ArticleDetailView: View {
                     url: url,
                     onClose: { showBrowser = false },
                     onOpenExternal: {
-                        NSWorkspace.shared.open(url)
+                        if url.isWebURL { NSWorkspace.shared.open(url) }
                     }
                 )
             } else {
@@ -251,7 +266,7 @@ struct ArticleDetailView: View {
             showBrowser = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .openInBrowser)) { _ in
-            if let article = store.selectedArticle, let url = article.link {
+            if let article = store.selectedArticle, let url = article.link, url.isWebURL {
                 browserURL = url
                 showBrowser = true
             }
@@ -286,7 +301,7 @@ struct ArticleDetailView: View {
                         .help(flag.rawValue)
                     }
 
-                    if let url = article.link {
+                    if let url = article.link, url.isWebURL {
                         Button {
                             browserURL = url
                             showBrowser = true

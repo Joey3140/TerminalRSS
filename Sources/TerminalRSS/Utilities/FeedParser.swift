@@ -61,7 +61,8 @@ final class FeedParser: NSObject, XMLParserDelegate {
                 id: id,
                 feedID: feedID,
                 title: item.title,
-                link: URL(string: item.link),
+                // Feed text is untrusted: keep only http/https article links.
+                link: URL(string: item.link).flatMap { $0.isWebURL ? $0 : nil },
                 content: body,
                 pubDate: parseDate(item.pubDate),
                 author: item.author.isEmpty ? nil : item.author
