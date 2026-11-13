@@ -110,34 +110,47 @@ for f in $CHANGED_FILES; do
     done
 done
 
+# resolve_module <dir> <require-path> → repo-relative file, or empty
+resolve_module() {
+  local candidate canon
+  for candidate in "$1/$2.js" "$1/$2/index.js" "$1/$2"; do
+    if [ -f "$candidate" ]; then
+      # Canonicalize before stripping the prefix — require('../x') paths
+      # contain "/../" and never matched the exports table otherwise
+      canon="$(cd "$(dirname "$candidate")" 2>/dev/null && pwd)/$(basename "$candidate")"
+      echo "${canon#"$REPO_DIR"/}"
+      return
+    fi
+  done
+}
+
 # Cross-reference imports vs exports
 MISMATCH_COUNT=0
 if [ -f "$IMPORTS_TMP" ] && [ -s "$IMPORTS_TMP" ]; then
   while IFS=: read -r src_file line_num imp_name req_path; do
     [ -z "$imp_name" ] && continue
 
-    SRC_DIR=$(dirname "$REPO_DIR/$src_file")
-    RESOLVED=""
-    for candidate in "$SRC_DIR/$req_path.js" "$SRC_DIR/$req_path/index.js" "$SRC_DIR/$req_path"; do
-      if [ -f "$candidate" ]; then
-        # Canonicalize before stripping the prefix — require('../x') paths
-        # contain "/../" and never matched the exports table otherwise
-        CANON="$(cd "$(dirname "$candidate")" 2>/dev/null && pwd)/$(basename "$candidate")"
-        RESOLVED=${CANON#"$REPO_DIR"/}
-        break
-      fi
-    done
-
+    RESOLVED=$(resolve_module "$(dirname "$REPO_DIR/$src_file")" "$req_path")
     [ -z "$RESOLVED" ] && continue
+
+    # Whole-module re-export (`module.exports = require('./x')`): the names
+    # live in the target, so check that file instead (one hop).
+    REEXPORT=$(grep -oE "module\.exports[[:space:]]*=[[:space:]]*require\(['\"][^'\"]+['\"]\)" "$REPO_DIR/$RESOLVED" 2>/dev/null | \
+      head -1 | grep -oE "['\"][^'\"]+['\"]" | tr -d "'\"")
+    if [ -n "$REEXPORT" ]; then
+      TARGET=$(resolve_module "$(dirname "$REPO_DIR/$RESOLVED")" "$REEXPORT")
+      [ -n "$TARGET" ] && RESOLVED="$TARGET"
+    fi
 
     # Fixed-string full-line match — path dots are not regex wildcards
     if [ -f "$EXPORTS_TMP" ] && ! grep -qxF "$RESOLVED:$imp_name" "$EXPORTS_TMP"; then
       # Fallback direct grep in the resolved file. Boundary-guarded so a
       # short import name can't ride on the suffix of a longer export
-      # ('Names' must not match 'loadIdentityNames,').
+      # ('Names' must not match 'loadIdentityNames,'). End-of-line counts:
+      # the last entry of a multi-line export object has no trailing comma.
       if [ -f "$REPO_DIR/$RESOLVED" ] && \
          ! grep -qE "(^|[^A-Za-z0-9_\$])(module\.)?exports\.${imp_name}[[:space:]]*=" "$REPO_DIR/$RESOLVED" 2>/dev/null && \
-         ! grep -qE "(^|[^A-Za-z0-9_\$])${imp_name}[[:space:]]*[,}:]" "$REPO_DIR/$RESOLVED" 2>/dev/null; then
+         ! grep -qE "(^|[^A-Za-z0-9_\$])${imp_name}[[:space:]]*([,}:]|$)" "$REPO_DIR/$RESOLVED" 2>/dev/null; then
         if ! is_allowed "$imp_name"; then
           BLOCKERS="${BLOCKERS}  IMPORT MISMATCH: $src_file:$line_num imports '$imp_name' from $req_path but $RESOLVED does not export it\n"
           MISMATCH_COUNT=$((MISMATCH_COUNT + 1))
