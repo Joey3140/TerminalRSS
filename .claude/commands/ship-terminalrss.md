@@ -32,7 +32,7 @@ When called interactively, produce the full ship report — structured block goe
 ## Step 1: Preflight — Build
 
 ```bash
-cd ~/Harness\ Projects/TerminalRSS && bash build.sh 2>&1
+cd ~/claude-projects/TerminalRSS && bash build.sh 2>&1
 ```
 
 If the build fails, **STOP**. Fix the issue before proceeding.

@@ -202,10 +202,10 @@ Goal wins with disclosure — build all features, disclose any compromises.
 
 ```bash
 # Build check (primary gate)
-cd ~/Harness\ Projects/TerminalRSS && swift build 2>&1
+cd ~/claude-projects/TerminalRSS && swift build 2>&1
 
 # Release build + install
-cd ~/Harness\ Projects/TerminalRSS && bash build.sh 2>&1
+cd ~/claude-projects/TerminalRSS && bash build.sh 2>&1
 
 # Verify new files exist
 ls -la Sources/TerminalRSS/Models/DateFilter.swift \

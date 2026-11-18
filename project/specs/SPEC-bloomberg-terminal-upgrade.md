@@ -182,13 +182,13 @@ Goal wins with disclosure — build all features, disclose any compromises (e.g.
 
 ```bash
 # Build check (primary gate)
-cd ~/Harness\ Projects/TerminalRSS && swift build 2>&1
+cd ~/claude-projects/TerminalRSS && swift build 2>&1
 
 # Release build + install
-cd ~/Harness\ Projects/TerminalRSS && bash build.sh 2>&1
+cd ~/claude-projects/TerminalRSS && bash build.sh 2>&1
 
 # Verify no external deps added
-grep -c "dependencies:" ~/Harness\ Projects/TerminalRSS/Package.swift
+grep -c "dependencies:" ~/claude-projects/TerminalRSS/Package.swift
 # Should be 0 or show empty array
 
 # Verify all new files exist
