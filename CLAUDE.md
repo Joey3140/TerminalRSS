@@ -6,7 +6,7 @@ Inherits every rule in `~/.claude/CLAUDE.md` and `~/claude-projects/CLAUDE.md`. 
 
 ## Project MUST DO
 
-1. **Verify before committing** — this project has no test suite yet; exercise the change the way this file describes (build script, live check, or manual run).
+1. **Verify before committing** — run `swift test` (suite in `tests/TerminalRSSTests`; CI runs it on every push to main), plus a `./build.sh` live check for UI changes.
 
 ## Project PREFER
 

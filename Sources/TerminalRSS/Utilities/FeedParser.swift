@@ -43,6 +43,11 @@ final class FeedParser: NSObject, XMLParserDelegate {
 
     static func fetch(url: URL, feedID: UUID) async throws -> (feed: Feed, items: [FeedItem]) {
         let (data, _) = try await URLSession.shared.data(from: url)
+        return try build(data: data, url: url, feedID: feedID)
+    }
+
+    /// The feed and its items from downloaded feed bytes (apart from the download so it can be tested).
+    static func build(data: Data, url: URL, feedID: UUID) throws -> (feed: Feed, items: [FeedItem]) {
         let parser = FeedParser()
         let parsed = try parser.parse(data: data)
 

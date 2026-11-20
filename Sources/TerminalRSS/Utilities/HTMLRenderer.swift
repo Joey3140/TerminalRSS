@@ -72,9 +72,16 @@ struct HTMLRenderer {
                                                      withTemplate: "\n<<SPLIT>>\n")
         }
 
-        // <hr> as its own block
-        text = text.replacingOccurrences(of: "<hr", with: "\n<<SPLIT>>\n<hr",
-                                         options: .caseInsensitive)
+        // <hr> as its own block, split on both sides so text after it isn't swallowed
+        // into the rule. A list's opening tag gets its own (empty, dropped) chunk so
+        // the first <li> still starts its chunk and renders as a list item.
+        for (pattern, template) in [("<hr[^>]*>", "\n<<SPLIT>>\n$0\n<<SPLIT>>\n"),
+                                    ("<(ul|ol)(\\s[^>]*)?>", "$0\n<<SPLIT>>\n")] {
+            if let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let range = NSRange(text.startIndex..., in: text)
+                text = re.stringByReplacingMatches(in: text, range: range, withTemplate: template)
+            }
+        }
 
         return text.components(separatedBy: "<<SPLIT>>")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
